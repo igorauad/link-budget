@@ -20,8 +20,11 @@
 # References:
 #
 # [1] Couch, Leon W.. Digital & Analog Communication Systems.
+# [2] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf
+#
 import argparse, math, logging
-from math import log10, sin, asin, cos, acos, tan, atan, pi, degrees, radians
+from math import log10, sqrt, sin, asin, cos, acos, tan, atan, pi, degrees, \
+    radians
 
 
 speed_of_light = 299792458 # in m/s
@@ -39,6 +42,10 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
         rx_long  : Longitude of the receiver station in degrees
         rx_lat   : Latitute of the receiver station in degrees
 
+    Note:
+        - Positive longitudes are east, whereas negative longitudes are to the
+          west.
+
     Returns:
         Tuple with elevation (degrees), azimuth (degrees) and slant range (m)
 
@@ -48,29 +55,54 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
     rx_long   = radians(rx_long)
     rx_lat    = radians(rx_lat)
 
-    long_diff = sat_long - rx_long
-    R         = 3963   # Earth radius in statute miles
-    h         = 22242  # Geosync satellite height in statute miles
-    # Eq. 8-48b from [1]:
-    beta = acos(cos(rx_lat) * cos(long_diff))
-    # Elevation: Eq. 8-48a from [1]:
-    E = math.atan((1/math.tan(beta)) - (R/((R + h)*sin(beta))))
-    # Distance between the satellite and the receiver (slant range), from
-    # Eq. 8-49 in [1]:
-    d = math.sqrt((R+h)**2 + R**2 - 2*R*(R+h)*math.cos(beta))
-    # Azimuth, from Eq. 8-50 in [1]:
-    A = 2*pi - math.acos(-math.tan(rx_lat)/math.tan(beta))
+    # Constants
+    R = 6371e3 # mean radius of the earth (in meters)
+    r = 42.2e6 # distance from the earth's center to the spacecraf (in meters)
 
-    # Convert back to degrees and m
-    E = degrees(E)
-    A = degrees(A)
-    d = d * 1609.3472
+    # Eq. (1) from [2]:
+    cos_gamma = cos(rx_lat) * cos(sat_long - rx_long)
+    gamma     = acos(cos_gamma)
+    # gamma is the angle between the radius vectors to the Rx location and the
+    # sub-satellite point (intersection with the earth's surface of the
+    # geocentric radius vector to the satellite). Equation (1) is the cosine of
+    # the this angle.
 
-    logging.info("Elevation:          {:6.2f} degrees".format(E))
-    logging.info("Azimuth:            {:6.2f} degrees".format(A))
+    # Distance between the satellite and the receiver (a.k.a. slant range), from
+    # Equation (2) of [2]:
+    d = r * sqrt(1 + (R/r)**2 - 2*(R/r)*cos_gamma)
+
+    # Zenith distance, Equation (4) from [2]:
+    z = asin((r/d)*sin(gamma))
+
+    # Elevation:
+    v = 90 - degrees(z)
+
+    # Angle of Equation (6) from [2]:
+    beta = acos(tan(rx_lat)/tan(gamma))
+
+    # Azimuth:
+    if (rx_lat > 0):
+        # Rx is north of the satellite
+        if (sat_long < rx_long):
+            # Satellite to SW
+            alpha = 180 + degrees(beta)
+        else:
+            # Satellite to SE
+            alpha = 180 - degrees(beta)
+    else:
+        # Rx is south of the satellite
+        if (sat_long < rx_long):
+            # Satellite to NW
+            alpha = 360 - degrees(beta)
+        else:
+            # Satellite to NE
+            alpha = degrees(beta)
+
+    logging.info("Elevation:          {:6.2f} degrees".format(v))
+    logging.info("Azimuth:            {:6.2f} degrees".format(alpha))
     logging.info("Distance:           {:8.2f} km".format(d/1e3))
 
-    return E, A, d
+    return v, alpha, d
 
 
 def calc_path_loss(d, freq):
