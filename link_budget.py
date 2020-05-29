@@ -5,9 +5,9 @@
 # To reproduce Example SA8-1 from [1]:
 #
 # ./link_budget.py --eirp 52 \
-#  --f-dl 12.45e9 \
+#  --freq 12.45e9 \
 #  --if-bw 24e6 \
-#  --dish-size 0.46 \
+#  --rx-dish-size 0.46 \
 #  --antenna-noise-temp 20 \
 #  --lnb-noise-fig 0.6 \
 #  --lnb-gain 40 \
@@ -41,13 +41,44 @@ def _db_to_abs(val_db):
     return 10**(val_db/10)
 
 
-def calc_look_angles(sat_long, rx_long, rx_lat):
-    """Calculate look angles (elevation, azimuth) and slant range
+def calc_eirp(tx_power, tx_dish_gain, tx_dish_size, freq):
+    """Compute the EIRP
+
+    Given that EIRP (dB) = Tx Power (dB) + Tx Antenna Gain (dB), we only need
+    the two terms. The antenna gain could either be provided directly or
+    indirectly by providing the Tx dish size and frequency.
 
     Args:
-        sat_long : Longitude of the geosynchronous satellite in degrees
-        rx_long  : Longitude of the receiver station in degrees
-        rx_lat   : Latitute of the receiver station in degrees
+        tx_power     : Transmit power feeding the antenna (dBW)
+        tx_dish_gain : Transmit antenna gain (dB)
+        tx_dish_size : Transmit antenna diameter (m)
+        freq         : Transmit signal frequency (Hz)
+
+    """
+
+    if (tx_dish_gain is None):
+        tx_dish_gain_db = calc_dish_gain(tx_dish_size, freq)
+    else:
+        tx_dish_gain_db = tx_dish_gain
+
+    eirp = tx_power + tx_dish_gain_db
+
+    return eirp
+
+
+def calc_look_angles(sat_long, rx_long, rx_lat, sat_alt=35786e3):
+    """Calculate look angles (elevation, azimuth) and slant range
+
+    Computes the angles relative to a reflector, either an active reflector
+    (satellite) or a passive reflector (radar object). Assumes the reflector is
+    located in the equator (latitude 0).
+
+    Args:
+        sat_long   : Longitude of the satellite/reflector in degrees
+        rx_long    : Longitude of the receiver station in degrees
+        rx_lat     : Latitute of the receiver station in degrees
+        sat_alt    : Satellite/reflector altitude (default to geosynchronous
+                     altitude)
 
     Note:
         - Positive longitudes are east, whereas negative longitudes are to the
@@ -65,8 +96,7 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
     # Constants
     R         = 6371e3           # mean radius of the earth in meters
     R_eq      = 6378.137e3       # equatorial radius in meters (see [4])
-    geo_orbit = 35786e3
-    r         = R_eq + geo_orbit # from the earth's center to the spacecraft
+    r         = R_eq + sat_alt   # from the earth's center to the spacecraft
 
     # Eq. (1) from [2]:
     cos_gamma = cos(rx_lat) * cos(sat_long - rx_long)
@@ -114,12 +144,30 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
     return v, alpha, d
 
 
-def calc_path_loss(d, freq):
+def calc_path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
     """Calculate free-space path loss
 
+    Also known as free-space transmission loss.
+
+    This function supports radar mode, in which case the path loss is computed
+    by considering both forward and reverse paths to/from the radar object.
+
     Args:
-        d    : Distance in meters
-        freq : Carrier frequency in Hz
+        d        : Distance in meters between transmitter and receiver
+                   or between transmitter and radar object
+        freq     : Carrier frequency in Hz
+        radar    : Radar mode
+        bistatic : Bistatic radar
+        rcs      : Radar cross section (RCS)
+        d_rx     : Bistatic radar mode only: distance between radar object and
+                   receiver that is not collocated with the transmitter
+
+    Notes:
+
+        - The RCS definition repeated in [3] is the following: "the RCS of a
+          radar object is the hypothetical area intercepting that amount of
+          power which, when scattered isotropically, produces a power density at
+          the receiver equal to that from the actual object."
 
     Returns:
         Path loss in dB
@@ -127,8 +175,27 @@ def calc_path_loss(d, freq):
     """
     wavelength = speed_of_light / freq
 
-    # Eq. 8-11 from [1]:
-    Lfs_db = 20*log10(4*pi*d/wavelength)
+    # Eq. 8-11 from [1], or Eq. 3.16 from [3]:
+    Lfs_one_way_db = 20*log10(4*pi*d/wavelength)
+
+    if (radar):
+        assert(rcs is not None)
+        assert(bistatic is not None)
+
+        # Radar object gain in dB, equation 3.23 in [3]:
+        G_obj_db = 10*log10(4*pi*rcs/(wavelength**2))
+
+        if (bistatic):
+            assert(d_rx is not None)
+            Lfs_tx_db = Lfs_one_way_db
+            Lfs_rx_db = 20*log10(4*pi*d_rx/wavelength)
+            # Bistatic radar transmission loss in dB, equation 3.24 in [3]:
+            Lfs_db = Lfs_tx_db + Lfs_rx_db - G_obj_db
+        else:
+            # Monostatic radar transmission loss in dB, equation 3.26 in [3]:
+            Lfs_db = 2*Lfs_one_way_db - G_obj_db
+    else:
+        Lfs_db = Lfs_one_way_db
 
     logging.info("Path loss:          {:6.2f} dB".format(Lfs_db))
     return Lfs_db
@@ -218,7 +285,7 @@ def calc_total_noise_figure(nfs, gains):
         F      += (nf_abs - 1) / G_prod
 
     F_db = 10*log10(F)
-    logging.info("Noise figure:       {:6.2f} dB".format(F_db))
+    logging.info("Rx noise figure:    {:6.2f} dB".format(F_db))
     return F_db
 
 
@@ -238,10 +305,26 @@ def noise_fig_to_noise_temp(nf):
     """
     nf_abs = _db_to_abs(nf)
 
-    # Using Equation 8-30b:
+    # Using Equation 8-30b in [1]:
     Te = T0 * (nf_abs - 1)
-    logging.info("Input-noise temp:   {:6.2f} K".format(Te))
+
     return Te
+
+
+def noise_temp_to_noise_fig(Te):
+    """Convert an effective input-noise temperature to a noise figure in dB
+
+    Args:
+        Te : Noise temperature in K
+
+    Returns:
+        Noise figure in dB
+
+    """
+    # Noise factor
+    nf_abs = 1 + Te/T0
+    # Return the noise figure
+    return 10*log10(nf_abs)
 
 
 def calc_rx_sys_noise_temp(Tar, Te):
@@ -291,10 +374,9 @@ def calc_rx_sys_noise_temp(Tar, Te):
 
     # Equation 8-41 from [1], or 4.39 from [3]:
     Tsyst = Tar + Te
+    logging.info("System noise temp:  {:6.2f} K".format(Tsyst))
 
     Tsyst_db = 10*log10(Tsyst)
-
-    logging.info("System noise temp:  {:6.2f} dB".format(Tsyst_db))
 
     return Tsyst_db
 
@@ -303,7 +385,7 @@ def calc_c_to_n(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
     """Compute the carrier-to-noise (C/N) ratio in dB
 
     Args:
-        eirp_db        : EIRP in dBw
+        eirp_db        : EIRP in dBW
         path_loss_db   : Free-space path loss in dB
         rx_ant_gain_db : Receiver antenna gain in dB
         T_sys_db       : Receiver system noise temperature in dB
@@ -319,103 +401,202 @@ def calc_c_to_n(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
     k_db  = -228.6 # Negative in dB because the Boltzmann’s constant is 1.38e-23
     bw_db = 10*log10(bw)
 
-    # The ration between the Rx antenna gain and the receiver noise temperature
-    # is a metric of interest, so log it:
-    g_over_t_db = rx_ant_gain_db - T_sys_db
-    logging.info("(Gar/Tsyst):        {:6.2f} dB/K".format(g_over_t_db))
+    # The received power level at the antenna terminals is of interest, so print
+    # it it out:
+    P_rx_dbw = eirp_db - path_loss_db + rx_ant_gain_db
+    P_rx_dbm = P_rx_dbw + 30
+    logging.info("Rx Power:           {:6.2f} dBm".format(P_rx_dbm))
 
-    # Equation 8-43 from [1]:
+    # The ratio between the Rx antenna gain and the receiver noise temperature,
+    # usually known as G/T, is also a metric of interest, so log it:
+    g_over_t_db = rx_ant_gain_db - T_sys_db
+    logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
+
+    # C/N, as computed in Equation 8-43 from [1]:
     C_N_db = eirp_db - path_loss_db + g_over_t_db - k_db - bw_db
     logging.info("(C/N):              {:6.2f} dB".format(C_N_db))
 
 
 def parser():
     parser = argparse.ArgumentParser(description="Link Budget")
-    parser.add_argument('--eirp',
-                        default=52,
+
+    tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
+    tx_pwr_group.add_argument('--eirp',
+                              type=float,
+                              help='EIRP in dBW.')
+    tx_pwr_group.add_argument('--tx-power',
+                              type=float,
+                              help='Tx power feeding the antenna in dBW.')
+
+    tx_dish_group = parser.add_mutually_exclusive_group()
+    tx_dish_group.add_argument('--tx-dish-size',
+                               type=float,
+                               help='Size (diameter) of the parabolic antenna '
+                               'used for transmission. Used when the power is '
+                               'specified through option --tx-power')
+    tx_dish_group.add_argument('--tx-dish-gain',
+                               type=float,
+                               help='Gain in dB of the parabolic antenna '
+                               'used for transmission. Used when the power is '
+                               'specified through option --tx-power')
+
+    parser.add_argument('--freq',
+                        required=True,
                         type=float,
-                        help='EIRP in dBw.')
-    parser.add_argument('--f-dl',
-                        default=12.45e9,
-                        type=float,
-                        help='Downlink carrier frequency in Hz.')
+                        help='Downlink carrier frequency in Hz for satellite '
+                        'signals or simply the signal frequency in Hz for '
+                        'radar (passively reflected) signals.')
+
     parser.add_argument('--if-bw',
-                        default=24e6,
+                        required=True,
                         type=float,
                         help='IF bandwidth in Hz.')
-    parser.add_argument('--dish-size',
-                        default=0.46,
-                        type=float,
-                        help='Parabolic antenna (dish) diameter in m.')
+
+    rx_dish_group = parser.add_mutually_exclusive_group(required=True)
+    rx_dish_group.add_argument('--rx-dish-size',
+                               type=float,
+                               help='Parabolic antenna (dish) diameter in m.')
+    rx_dish_group.add_argument('--rx-dish-gain',
+                               type=float,
+                               help='Parabolic antenna (dish) gain in dB.')
+
     parser.add_argument('--antenna-noise-temp',
-                        default=20,
+                        required=True,
                         type=float,
                         help='Receive antenna\'s noise temperature in K.')
-    parser.add_argument('--lnb-noise-fig',
-                        default=0.6,
-                        type=float,
-                        help='LNB\'s noise figure in dB.')
+
+    lnb_noise_group = parser.add_mutually_exclusive_group(required=True)
+    lnb_noise_group.add_argument('--lnb-noise-fig',
+                                 type=float,
+                                 help='LNB\'s noise figure in dB.')
+    lnb_noise_group.add_argument('--lnb-noise-temp',
+                                 type=float,
+                                 help='LNB\'s noise temperature in K.')
+
     parser.add_argument('--lnb-gain',
-                        default=40,
+                        required=True,
                         type=float,
                         help='LNB\'s gain.')
+
     parser.add_argument('--coax-length',
-                        default=110,
+                        required=True,
                         type=float,
                         help='Length of the coaxial transmission line between '
                         'the LNB and the receiver in ft.')
+
     parser.add_argument('--rx-noise-fig',
-                        default=10,
+                        required=True,
                         type=float,
                         help='Receiver\'s noise figure in dB.')
+
     parser.add_argument('--sat-long',
-                        default=101,
+                        required=True,
                         type=float,
                         help='Satellite\'s longitude. Negative to the West and '
                         'positive to the East')
     parser.add_argument('--sat-lat',
-                        default=0,
                         type=float,
                         help='Satellite\'s latitude. Positive to the North '
                         'and negative to the South')
+
     parser.add_argument('--rx-long',
-                        default=82.43,
+                        required=True,
                         type=float,
                         help='Receive station\'s longitude. Negative to the '
                         'West and positive to the East')
     parser.add_argument('--rx-lat',
-                        default=29.71,
+                        required=True,
                         type=float,
                         help='Receive station\'s latitude. Positive to the '
                         'North and negative to the South')
+
+    radar_p = parser.add_argument_group('radar options')
+    radar_p.add_argument('--radar',
+                         default=False,
+                         action='store_true',
+                         help='Activate radar mode, so that the link budget '
+                         'considers the pathloss to and back from object')
+    radar_p.add_argument('--radar-alt',
+                         type=float,
+                         help='Altitude of the radar object')
+    radar_p.add_argument('--radar-cross-section',
+                         type=float,
+                         help='Radar cross section of the radar object')
+    radar_p.add_argument('--radar-bistatic',
+                         default=False,
+                         action='store_true',
+                         help='Bistatic radar scenario, i.e., radar '
+                         'transmitter and receiver are not collocated')
     args = parser.parse_args()
+
+    if (args.tx_power and args.tx_dish_size is None and
+        args.tx_dish_gain is None):
+        parser.error("Define either --tx-dish-size or --tx-dish-gain  "
+                     "using option --tx-power")
+
+    if (args.radar):
+        if (args.radar_alt is None):
+            parser.error("Argument --radar-alt is required in radar mode "
+                         "(--radar)")
+        if (args.radar_cross_section is None) :
+            parser.error("Argument --radar-cross-section is required in radar "
+                         "mode (--radar)")
     return args
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
     args = parser()
+
+    sat_alt = 35786e3 if not args.radar else args.radar_alt
+
     elevation, azimuth, slant_range = calc_look_angles(args.sat_long,
                                                        args.rx_long,
-                                                       args.rx_lat)
+                                                       args.rx_lat,
+                                                       sat_alt)
 
-    path_loss_db = calc_path_loss(slant_range, args.f_dl)
+    # Compute the EIRP
+    if (args.eirp is None):
+        eirp = calc_eirp(args.tx_power, args.tx_dish_gain, args.tx_dish_size,
+                         args.freq)
+    else:
+        eirp = args.eirp
 
-    dish_gain_db = calc_dish_gain(args.dish_size, args.f_dl)
+    logging.info("EIRP:               {:6.2f} dBW ({:6.2f} kW)".format(
+        eirp, _db_to_abs(eirp)/1e3))
+
+    path_loss_db = calc_path_loss(slant_range, args.freq, args.radar,
+                                  args.radar_cross_section, args.radar_bistatic)
+    # TODO support bistatic radar. Add distance from radar object to rx station.
+
+    if (args.rx_dish_gain is None):
+        dish_gain_db = calc_dish_gain(args.rx_dish_size, args.freq)
+    else:
+        dish_gain_db = args.rx_dish_gain
 
     coax_loss_db, coax_noise_fig_db = calc_coax_gain_nf(args.coax_length)
 
+    if (args.lnb_noise_fig is None):
+        lnb_noise_fig = noise_temp_to_noise_fig(args.lnb_noise_temp)
+    else:
+        lnb_noise_fig = args.lnb_noise_fig
+
+    logging.info("LNB noise figure:   {:6.2f} dB".format(lnb_noise_fig))
+
     noise_fig_db = calc_total_noise_figure(
-        [args.lnb_noise_fig, coax_noise_fig_db, args.rx_noise_fig],
+        [lnb_noise_fig, coax_noise_fig_db, args.rx_noise_fig],
         [args.lnb_gain, -coax_loss_db]
     )
 
     effective_input_noise_temp = noise_fig_to_noise_temp(noise_fig_db)
 
+    logging.info("Antenna noise temp: {:6.2f} K".format(args.antenna_noise_temp))
+    logging.info("Input-noise temp:   {:6.2f} K".format(effective_input_noise_temp))
+
     T_syst_db = calc_rx_sys_noise_temp(args.antenna_noise_temp,
                                        effective_input_noise_temp)
 
-    calc_c_to_n(args.eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
+    calc_c_to_n(eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
 
 
 if __name__ == '__main__':
