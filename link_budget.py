@@ -13,14 +13,20 @@
 #  --lnb-gain 40 \
 #  --coax-length 110 \
 #  --rx-noise-fig 10 \
-#  --sat-long 101 \
-#  --rx-long 82.43 \
+#  --sat-long -101 \
+#  --rx-long -82.43 \
 #  --rx-lat 29.71
 #
 # References:
 #
 # [1] Couch, Leon W.. Digital & Analog Communication Systems.
+#
 # [2] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf
+#
+# [3] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System
+# (Master's thesis).
+#
+# [4] https://en.wikipedia.org/wiki/Earth_radius
 #
 import argparse, math, logging
 from math import log10, sqrt, sin, asin, cos, acos, tan, atan, pi, degrees, \
@@ -56,8 +62,10 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
     rx_lat    = radians(rx_lat)
 
     # Constants
-    R = 6371e3 # mean radius of the earth (in meters)
-    r = 42.2e6 # distance from the earth's center to the spacecraf (in meters)
+    R         = 6371e3           # mean radius of the earth in meters
+    R_eq      = 6378.137e3       # equatorial radius in meters (see [4])
+    geo_orbit = 35786e3
+    r         = R_eq + geo_orbit # from the earth's center to the spacecraft
 
     # Eq. (1) from [2]:
     cos_gamma = cos(rx_lat) * cos(sat_long - rx_long)
@@ -78,25 +86,25 @@ def calc_look_angles(sat_long, rx_long, rx_lat):
     v = 90 - degrees(z)
 
     # Angle of Equation (6) from [2]:
-    beta = acos(tan(rx_lat)/tan(gamma))
+    beta = degrees(acos(tan(rx_lat)/tan(gamma)))
 
     # Azimuth:
     if (rx_lat > 0):
         # Rx is north of the satellite
         if (sat_long < rx_long):
             # Satellite to SW
-            alpha = 180 + degrees(beta)
+            alpha = 180 + beta
         else:
             # Satellite to SE
-            alpha = 180 - degrees(beta)
+            alpha = 180 - beta
     else:
         # Rx is south of the satellite
         if (sat_long < rx_long):
             # Satellite to NW
-            alpha = 360 - degrees(beta)
+            alpha = 360 - beta
         else:
             # Satellite to NE
-            alpha = degrees(beta)
+            alpha = beta
 
     logging.info("Elevation:          {:6.2f} degrees".format(v))
     logging.info("Azimuth:            {:6.2f} degrees".format(alpha))
@@ -340,19 +348,23 @@ def parser():
     parser.add_argument('--sat-long',
                         default=101,
                         type=float,
-                        help='Satellite\'s longitude.')
+                        help='Satellite\'s longitude. Negative to the West and '
+                        'positive to the East')
     parser.add_argument('--sat-lat',
                         default=0,
                         type=float,
-                        help='Satellite\'s latitude.')
+                        help='Satellite\'s latitude. Positive to the North '
+                        'and negative to the South')
     parser.add_argument('--rx-long',
                         default=82.43,
                         type=float,
-                        help='Receive station\'s longitude.')
+                        help='Receive station\'s longitude. Negative to the '
+                        'West and positive to the East')
     parser.add_argument('--rx-lat',
                         default=29.71,
                         type=float,
-                        help='Receive station\'s latitude.')
+                        help='Receive station\'s latitude. Positive to the '
+                        'North and negative to the South')
     args = parser.parse_args()
     return args
 
