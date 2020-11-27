@@ -30,15 +30,12 @@
 #
 import argparse, math, logging
 from math import log10, sqrt, sin, asin, cos, acos, tan, atan, pi, degrees, \
-    radians
+    radians, log2
+import util
 
 
 speed_of_light = 299792458 # in m/s
 T0 = 290 # standard room temperature in Kelvin
-
-
-def _db_to_abs(val_db):
-    return 10**(val_db/10)
 
 
 def calc_eirp(tx_power, tx_dish_gain, tx_dish_size, freq):
@@ -237,7 +234,7 @@ def calc_coax_gain_nf(length_ft, Tl=T0):
     """
     loss_db_per_ft = 8/100
     loss_db        = length_ft * loss_db_per_ft
-    loss           = _db_to_abs(loss_db)
+    loss           = util.db_to_abs(loss_db)
 
     # The noise figure (dB) of a coaxial line is equal to the loss in dB if the
     # physical temperature of the line is equal to T0=290 K. See Equation 8.32a
@@ -277,11 +274,11 @@ def calc_total_noise_figure(nfs, gains):
         return nfs[0]
 
     # Implement Equation 8-34 from [1]:
-    F      = _db_to_abs(nfs[0])
+    F      = util.db_to_abs(nfs[0])
     G_prod = 1
     for i, nf in enumerate(nfs[1:]):
-        nf_abs = _db_to_abs(nf)
-        G_prod *= _db_to_abs(gains[i])
+        nf_abs = util.db_to_abs(nf)
+        G_prod *= util.db_to_abs(gains[i])
         F      += (nf_abs - 1) / G_prod
 
     F_db = 10*log10(F)
@@ -303,7 +300,7 @@ def noise_fig_to_noise_temp(nf):
         Noise temperature in K
 
     """
-    nf_abs = _db_to_abs(nf)
+    nf_abs = util.db_to_abs(nf)
 
     # Using Equation 8-30b in [1]:
     Te = T0 * (nf_abs - 1)
@@ -331,7 +328,7 @@ def calc_rx_sys_noise_temp(Tar, Te):
     """Compute the receiver system noise temperature in dB
 
     The receiver noise temperature is the sum of the effective input-noise
-    temperature (Te) of the entire receiver see as a blackbox and the antenna
+    temperature (Te) of the entire receiver seen as a blackbox and the antenna
     noise temperature (Tar). The Te term represents the noise introduced by the
     cascaded linear components (e.g., the LNB, the coax line and e.g., the radio
     interface) of the receiver. The Tar component, in turn, is the noise
@@ -339,17 +336,17 @@ def calc_rx_sys_noise_temp(Tar, Te):
     radiation. The simplified model is as follows:
 
     Rx Antenna (Tar) -----> Sum ----> Noise-free Gain Stage ---> Detector
-                       ^
-                       |
-                       |
-                Receiver Noise (Te)
+                             ^
+                             |
+                             |
+                      Receiver Noise (Te)
 
     Note that this is peculiar because we don't combine the antenna as another
     cascaded device to the receiver. Instead, we sum the cascaded devices with
     the antenna, based on this model. See Figure 8-24 in [1].
 
     As explained in [3], around equation 4.39, this is just a convenient choice
-    for where we choose to observe the effective input-noise temperature. Note
+    in terms of where the effective input-noise temperature is observed. Note
     that an equivalent (or effective) input noise temperature represents the
     thermodynamic temperature of a noisy resistor, connected to the input of a
     noiseless two-port element, which gives the same output noise power as the
@@ -381,15 +378,18 @@ def calc_rx_sys_noise_temp(Tar, Te):
     return Tsyst_db
 
 
-def calc_c_to_n(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
-    """Compute the carrier-to-noise (C/N) ratio in dB
+def calc_cnr(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
+    """Compute the carrier-to-noise ratio (CNR) in dB
 
     Args:
         eirp_db        : EIRP in dBW
         path_loss_db   : Free-space path loss in dB
         rx_ant_gain_db : Receiver antenna gain in dB
         T_sys_db       : Receiver system noise temperature in dB
-        bw             :
+        bw             : Nominal signal bandwidth
+
+    Returns:
+        CNR (also known as C/N) in dB
 
     """
     # According to Equation 8-40 from [1], the noise power is given by N =
@@ -413,8 +413,23 @@ def calc_c_to_n(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
     logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
 
     # C/N, as computed in Equation 8-43 from [1]:
-    C_N_db = eirp_db - path_loss_db + g_over_t_db - k_db - bw_db
-    logging.info("(C/N):              {:6.2f} dB".format(C_N_db))
+    cnr_db = eirp_db - path_loss_db + g_over_t_db - k_db - bw_db
+    logging.info("(C/N):              {:6.2f} dB".format(cnr_db))
+
+    return cnr_db
+
+
+def calc_capacity(snr_db, bw):
+    """Compute the channel capacity in bps
+
+    Args:
+        snr_db : signal-to-noise ratio in dB
+        bw     : nominal bandwidth
+
+    """
+    snr = util.db_to_abs(snr_db)
+    c   = bw * log2(1 + snr)
+    logging.info("Capacity:           {}".format(util.format_rate(c)))
 
 
 def parser():
@@ -431,9 +446,9 @@ def parser():
     tx_dish_group = parser.add_mutually_exclusive_group()
     tx_dish_group.add_argument('--tx-dish-size',
                                type=float,
-                               help='Size (diameter) of the parabolic antenna '
-                               'used for transmission. Used when the power is '
-                               'specified through option --tx-power')
+                               help='Diameter in meters of the parabolic '
+                               'antenna used for transmission. Used when the '
+                               'power is specified through option --tx-power')
     tx_dish_group.add_argument('--tx-dish-gain',
                                type=float,
                                help='Gain in dB of the parabolic antenna '
@@ -458,7 +473,7 @@ def parser():
                                help='Parabolic antenna (dish) diameter in m.')
     rx_dish_group.add_argument('--rx-dish-gain',
                                type=float,
-                               help='Parabolic antenna (dish) gain in dB.')
+                               help='Parabolic antenna (dish) gain in dBi.')
 
     parser.add_argument('--antenna-noise-temp',
                         required=True,
@@ -559,11 +574,13 @@ def main():
     if (args.eirp is None):
         eirp = calc_eirp(args.tx_power, args.tx_dish_gain, args.tx_dish_size,
                          args.freq)
+        logging.info("Tx Power:           {:6.2f} kW".format(
+            util.db_to_abs(args.tx_power)/1e3))
     else:
         eirp = args.eirp
 
     logging.info("EIRP:               {:6.2f} dBW ({:6.2f} kW)".format(
-        eirp, _db_to_abs(eirp)/1e3))
+        eirp, util.db_to_abs(eirp)/1e3))
 
     path_loss_db = calc_path_loss(slant_range, args.freq, args.radar,
                                   args.radar_cross_section, args.radar_bistatic)
@@ -596,7 +613,9 @@ def main():
     T_syst_db = calc_rx_sys_noise_temp(args.antenna_noise_temp,
                                        effective_input_noise_temp)
 
-    calc_c_to_n(eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
+    cnr = calc_cnr(eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
+
+    calc_capacity(cnr, args.if_bw)
 
 
 if __name__ == '__main__':
