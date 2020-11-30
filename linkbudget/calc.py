@@ -4,15 +4,12 @@ Link Budget and other RF Calculations
 References:
 
  [1] Couch, Leon W.. Digital & Analog Communication Systems.
- [2] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf.
- [3] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System
+ [2] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System
      (Master's thesis).
- [4] https://en.wikipedia.org/wiki/Earth_radius.
 
 """
 import logging
-from math import log10, sqrt, sin, asin, cos, acos, tan, pi, degrees, \
-    radians, log2
+from math import log10, pi, log2
 from . import util
 
 
@@ -45,84 +42,6 @@ def eirp(tx_power, tx_dish_gain, tx_dish_size, freq):
     return eirp
 
 
-def look_angles(sat_long, rx_long, rx_lat, sat_alt=35786e3):
-    """Calculate look angles (elevation, azimuth) and slant range
-
-    Computes the angles relative to a reflector, either an active reflector
-    (satellite) or a passive reflector (radar object). Assumes the reflector is
-    located in the equator (latitude 0).
-
-    Args:
-        sat_long   : Longitude of the satellite/reflector in degrees
-        rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Latitute of the receiver station in degrees
-        sat_alt    : Satellite/reflector altitude (default to geosynchronous
-                     altitude)
-
-    Note:
-        - Positive longitudes are east, whereas negative longitudes are to the
-          west.
-
-    Returns:
-        Tuple with elevation (degrees), azimuth (degrees) and slant range (m)
-
-    """
-    # Convert to radians
-    sat_long = radians(sat_long)
-    rx_long = radians(rx_long)
-    rx_lat = radians(rx_lat)
-
-    # Constants
-    R = 6371e3          # mean radius of the earth in meters
-    R_eq = 6378.137e3   # equatorial radius in meters (see [4])
-    r = R_eq + sat_alt  # from the earth's center to the spacecraft
-
-    # Eq. (1) from [2]:
-    cos_gamma = cos(rx_lat) * cos(sat_long - rx_long)
-    gamma = acos(cos_gamma)
-    # gamma is the angle between the radius vectors to the Rx location and the
-    # sub-satellite point (intersection with the earth's surface of the
-    # geocentric radius vector to the satellite). Equation (1) is the cosine of
-    # the this angle.
-
-    # Distance between the satellite and the receiver (a.k.a. slant range),
-    # from Equation (2) of [2]:
-    d = r * sqrt(1 + (R/r)**2 - 2*(R/r)*cos_gamma)
-
-    # Zenith distance, Equation (4) from [2]:
-    z = asin((r/d)*sin(gamma))
-
-    # Elevation:
-    v = 90 - degrees(z)
-
-    # Angle of Equation (6) from [2]:
-    beta = degrees(acos(tan(rx_lat)/tan(gamma)))
-
-    # Azimuth:
-    if (rx_lat > 0):
-        # Rx is north of the satellite
-        if (sat_long < rx_long):
-            # Satellite to SW
-            alpha = 180 + beta
-        else:
-            # Satellite to SE
-            alpha = 180 - beta
-    else:
-        # Rx is south of the satellite
-        if (sat_long < rx_long):
-            # Satellite to NW
-            alpha = 360 - beta
-        else:
-            # Satellite to NE
-            alpha = beta
-
-    logging.info("Elevation:          {:6.2f} degrees".format(v))
-    logging.info("Azimuth:            {:6.2f} degrees".format(alpha))
-    logging.info("Distance:           {:8.2f} km".format(d/1e3))
-
-    return v, alpha, d
-
-
 def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
     """Calculate free-space path loss
 
@@ -143,7 +62,7 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
 
     Notes:
 
-        - The RCS definition repeated in [3] is the following: "the RCS of a
+        - The RCS definition repeated in [2] is the following: "the RCS of a
           radar object is the hypothetical area intercepting that amount of
           power which, when scattered isotropically, produces a power density
           at the receiver equal to that from the actual object."
@@ -154,24 +73,24 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
     """
     wavelength = SPEED_OF_LIGHT / freq
 
-    # Eq. 8-11 from [1], or Eq. 3.16 from [3]:
+    # Eq. 8-11 from [1], or Eq. 3.16 from [2]:
     Lfs_one_way_db = 20*log10(4*pi*d/wavelength)
 
     if (radar):
         assert(rcs is not None)
         assert(bistatic is not None)
 
-        # Radar object gain in dB, equation 3.23 in [3]:
+        # Radar object gain in dB, equation 3.23 in [2]:
         G_obj_db = 10*log10(4*pi*rcs/(wavelength**2))
 
         if (bistatic):
             assert(d_rx is not None)
             Lfs_tx_db = Lfs_one_way_db
             Lfs_rx_db = 20*log10(4*pi*d_rx/wavelength)
-            # Bistatic radar transmission loss in dB, equation 3.24 in [3]:
+            # Bistatic radar transmission loss in dB, equation 3.24 in [2]:
             Lfs_db = Lfs_tx_db + Lfs_rx_db - G_obj_db
         else:
-            # Monostatic radar transmission loss in dB, equation 3.26 in [3]:
+            # Monostatic radar transmission loss in dB, equation 3.26 in [2]:
             Lfs_db = 2*Lfs_one_way_db - G_obj_db
     else:
         Lfs_db = Lfs_one_way_db
@@ -222,7 +141,7 @@ def coax_gain_nf(length_ft, Tl=T0):
     # physical temperature of the line is equal to T0=290 K. See Equation 8.32a
     # on Example 8-2 in [1]. More generally, any passive two-port element (or
     # attenuator) at room temperature will have this property (noise figure =
-    # attenuation in dB), see Equation 4.22 in [3].
+    # attenuation in dB), see Equation 4.22 in [2].
     noise_factor = 1 + (Tl/T0)*(loss - 1)
     noise_fig = 10*log10(noise_factor)
 
@@ -327,13 +246,13 @@ def rx_sys_noise_temp(Tar, Te):
     cascaded device to the receiver. Instead, we sum the cascaded devices with
     the antenna, based on this model. See Figure 8-24 in [1].
 
-    As explained in [3], around equation 4.39, this is just a convenient choice
+    As explained in [2], around equation 4.39, this is just a convenient choice
     in terms of where the effective input-noise temperature is observed. Note
     that an equivalent (or effective) input noise temperature represents the
     thermodynamic temperature of a noisy resistor, connected to the input of a
     noiseless two-port element, which gives the same output noise power as the
     noisy but otherwise equivalent two-port element, with an ideal noiseless
-    source at its input [3]. Hence, if we group the entire receiver into a
+    source at its input [2]. Hence, if we group the entire receiver into a
     single equivalent two-port element, the Te term represents the noise
     generated by the entire receiver. This noise has power k*Te*B. When
     combined to the noise collected by the antenna, one obtaines the total
@@ -351,7 +270,7 @@ def rx_sys_noise_temp(Tar, Te):
 
     """
 
-    # Equation 8-41 from [1], or 4.39 from [3]:
+    # Equation 8-41 from [1], or 4.39 from [2]:
     Tsyst = Tar + Te
     logging.info("System noise temp:  {:6.2f} K".format(Tsyst))
 

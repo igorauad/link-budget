@@ -22,7 +22,7 @@ References:
 """
 import logging
 import argparse
-from . import calc, util
+from . import calc, pointing, util
 
 
 __version__ = "0.1.0"
@@ -192,10 +192,8 @@ def parser():
 def analyze(args):
     sat_alt = 35786e3 if not args.radar else args.radar_alt
 
-    elevation, azimuth, slant_range = calc.look_angles(args.sat_long,
-                                                       args.rx_long,
-                                                       args.rx_lat,
-                                                       sat_alt)
+    elevation, azimuth, slant_range = pointing.look_angles(
+        args.sat_long, args.rx_long, args.rx_lat, sat_alt)
 
     # Compute the EIRP
     if (args.eirp is None):
