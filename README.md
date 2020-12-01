@@ -1,5 +1,7 @@
 # Link Budget
 
+![Tests](https://github.com/igorauad/link_budget/workflows/Tests/badge.svg?branch=master)
+
 A Python-based link budget calculator for basic satellite communications and
 radar systems.
 
