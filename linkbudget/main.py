@@ -1,39 +1,24 @@
-"""Main link budget options and analysis
-
-To reproduce Example SA8-1 from [1]:
-
-./link_budget.py --eirp 52 \
-  --freq 12.45e9 \
-  --if-bw 24e6 \
-  --rx-dish-size 0.46 \
-  --antenna-noise-temp 20 \
-  --lnb-noise-fig 0.6 \
-  --lnb-gain 40 \
-  --coax-length 110 \
-  --rx-noise-fig 10 \
-  --sat-long -101 \
-  --rx-long -82.43 \
-  --rx-lat 29.71
-
-References:
-
-[1] Couch, Leon W.. Digital & Analog Communication Systems.
-
-"""
+"""Link budget analysis"""
+import json
 import logging
 import argparse
 from . import calc, pointing, util
 
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
-def parser():
+def get_parser():
+    """Command-line arguments"""
     parser = argparse.ArgumentParser(
         description="Link Budget Calculator",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-
+    parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Return results in a JSON-formatted string.'
+    )
     tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
     tx_pwr_group.add_argument(
         '--eirp',
@@ -56,8 +41,8 @@ def parser():
     tx_dish_group.add_argument(
         '--tx-dish-gain',
         type=float,
-        help='Gain in dB of the parabolic antenna used for transmission. Used '
-        'when the power is specified through option --tx-power'
+        help='Gain in dBi of the parabolic antenna used for transmission. '
+        'Used when the power is specified through option --tx-power'
     )
     parser.add_argument(
         '--freq',
@@ -172,8 +157,11 @@ def parser():
         help='Bistatic radar scenario, i.e., radar transmitter and receiver '
         'are not collocated'
     )
-    args = parser.parse_args()
+    return parser
 
+
+def validate(parser, args):
+    """Validate command-line arguments"""
     if (args.tx_power and args.tx_dish_size is None and
             args.tx_dish_gain is None):
         parser.error("Define either --tx-dish-size or --tx-dish-gain  "
@@ -186,10 +174,21 @@ def parser():
         if (args.radar_cross_section is None):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
-    return args
 
 
 def analyze(args):
+    """Main link budget analysis
+
+    Args:
+        args : Populated argparse namespace object.
+
+    Returns:
+        Dictionary with the main link budget results.
+
+    """
+    if (not args.json):
+        logging.basicConfig(level=logging.INFO)
+
     sat_alt = 35786e3 if not args.radar else args.radar_alt
 
     elevation, azimuth, slant_range = pointing.look_angles(
@@ -199,6 +198,7 @@ def analyze(args):
     if (args.eirp is None):
         if args.tx_dish_gain is None:
             tx_gain = calc.dish_gain(args.tx_dish_size, args.freq)
+            logging.info("Tx dish gain:       {:6.2f} dB".format(tx_gain))
         else:
             tx_gain = args.tx_dish_gain
         eirp = calc.eirp(args.tx_power, tx_gain)
@@ -218,6 +218,7 @@ def analyze(args):
 
     if (args.rx_dish_gain is None):
         dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq)
+        logging.info("Rx dish gain:       {:6.2f} dB".format(dish_gain_db))
     else:
         dish_gain_db = args.rx_dish_gain
 
@@ -242,15 +243,46 @@ def analyze(args):
     logging.info("Input-noise temp:   {:6.2f} K".format(
         effective_input_noise_temp))
 
-    T_syst_db = calc.rx_sys_noise_temp(args.antenna_noise_temp,
-                                       effective_input_noise_temp)
+    T_syst = calc.rx_sys_noise_temp(args.antenna_noise_temp,
+                                    effective_input_noise_temp)
+    T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
 
     cnr = calc.cnr(eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
 
-    calc.capacity(cnr, args.if_bw)
+    capacity = calc.capacity(cnr, args.if_bw)
+
+    # Results
+    res = {
+        'pointing': {
+            'elevation': elevation,
+            'azimuth': azimuth,
+            'slant_range': slant_range
+        },
+        'eirp_db': eirp,
+        'path_loss_db': path_loss_db,
+        'rx_dish_gain_db': dish_gain_db,
+        'noise_fig_db': {
+            'lnb': lnb_noise_fig,
+            'coax': coax_noise_fig_db,
+            'total': noise_fig_db
+        },
+        'noise_temp_k': {
+            'effective_input': effective_input_noise_temp,
+            'system': T_syst
+        },
+        'cnr_db': cnr,
+        'capacity_bps': capacity
+
+    }
+
+    if (args.json):
+        print(json.dumps(res))
+
+    return res
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-    args = parser()
+    parser = get_parser()
+    args = parser.parse_args()
+    validate(parser, args)
     analyze(args)

@@ -10,7 +10,7 @@ References:
 """
 
 import unittest
-from . import calc
+from . import calc, util
 
 
 class TestBudgetCalc(unittest.TestCase):
@@ -105,7 +105,8 @@ class TestBudgetCalc(unittest.TestCase):
 
     def test_rx_sys_noise_temp(self):
         # Study aid example SA8-1 from [1]:
-        Tsys_dbk = calc.rx_sys_noise_temp(Tar=20, Te=43.18)
+        Tsys = calc.rx_sys_noise_temp(Tar=20, Te=43.18)
+        Tsys_dbk = util.abs_to_db(Tsys)
         self.assertAlmostEqual(Tsys_dbk, 18.01, places=2)
 
     def test_cnr(self):

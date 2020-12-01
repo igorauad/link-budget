@@ -122,10 +122,7 @@ def dish_gain(diameter, freq):
 
     # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
     gain = 7*face_area/(wavelength**2)
-    gain_db = 10*log10(gain)
-
-    logging.info("Dish gain:          {:6.2f} dB".format(gain_db))
-    return gain_db
+    return 10*log10(gain)
 
 
 def coax_loss_nf(length_ft, Tl=T0):
@@ -233,7 +230,7 @@ def noise_temp_to_noise_fig(Te):
 
 
 def rx_sys_noise_temp(Tar, Te):
-    """Compute the receiver system noise temperature in dB
+    """Compute the receiver system noise temperature
 
     The receiver noise temperature is the sum of the effective input-noise
     temperature (Te) of the entire receiver seen as a blackbox and the antenna
@@ -270,21 +267,14 @@ def rx_sys_noise_temp(Tar, Te):
         Te  : Effective input-noise temperature in K.
 
     Returns:
-        The receiver system noise temperature in dB.
-
-    Note: here we return the noise temperature directly in dB (more
-    specifically, dBK, given the temperature in K). The dB form will be
-    directly subtracted in the C/N computation. See Equation 8-43 in [1].
+        Receiver system noise temperature in K.
 
     """
 
     # Equation 8-41 from [1], or 4.39 from [2]:
     Tsyst = Tar + Te
     logging.info("System noise temp:  {:6.2f} K".format(Tsyst))
-
-    Tsyst_db = 10*log10(Tsyst)
-
-    return Tsyst_db
+    return Tsyst
 
 
 def cnr(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
