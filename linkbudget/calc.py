@@ -17,48 +17,42 @@ SPEED_OF_LIGHT = 299792458  # in m/s
 T0 = 290  # standard room temperature in Kelvin
 
 
-def eirp(tx_power, tx_dish_gain, tx_dish_size, freq):
-    """Compute the EIRP
+def eirp(tx_power, tx_dish_gain):
+    """Compute the effective isotropically radiated power (EIRP)
 
-    Given that EIRP (dB) = Tx Power (dB) + Tx Antenna Gain (dB), we only need
-    the two terms. The antenna gain could either be provided directly or
-    indirectly by providing the Tx dish size and frequency.
+    EIRP (dB) = Tx Power (dB) + Tx Antenna Gain (dB).
 
     Args:
-        tx_power     : Transmit power feeding the antenna (dBW)
-        tx_dish_gain : Transmit antenna gain (dB)
-        tx_dish_size : Transmit antenna diameter (m)
-        freq         : Transmit signal frequency (Hz)
+        tx_power     : Transmit power feeding the antenna (dBW).
+        tx_dish_gain : Transmit antenna gain (dB).
+
+    Returns:
+        The EIRP in dBW.
 
     """
 
-    if (tx_dish_gain is None):
-        tx_dish_gain_db = dish_gain(tx_dish_size, freq)
-    else:
-        tx_dish_gain_db = tx_dish_gain
-
-    eirp = tx_power + tx_dish_gain_db
-
+    eirp = tx_power + tx_dish_gain
     return eirp
 
 
-def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
-    """Calculate free-space path loss
+def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
+    """Calculate the free-space path loss (or transmission loss)
 
-    Also known as free-space transmission loss.
-
-    This function supports radar mode, in which case the path loss is computed
-    by considering both forward and reverse paths to/from the radar object.
+    This function supports radar mode, in which case it computes the
+    transmission loss considering the path loss in the forward and reverse
+    paths (to and from the radar object) as well as the scattering at the radar
+    object based on its radar cross section.
 
     Args:
-        d        : Distance in meters between transmitter and receiver
-                   or between transmitter and radar object
-        freq     : Carrier frequency in Hz
-        radar    : Radar mode
-        bistatic : Bistatic radar
-        rcs      : Radar cross section (RCS)
+        d        : Distance in meters between transmitter and receiver (e.g.,
+                   satellite to ground station) or between the transmitter and
+                   the radar object.
+        freq     : Carrier frequency in Hz.
+        radar    : Radar mode.
+        bistatic : Bistatic radar.
+        rcs      : Radar cross section (RCS).
         d_rx     : Bistatic radar mode only: distance between radar object and
-                   receiver that is not collocated with the transmitter
+                   receiver that is not collocated with the transmitter.
 
     Notes:
 
@@ -68,7 +62,7 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
           at the receiver equal to that from the actual object."
 
     Returns:
-        Path loss in dB
+        Path loss in dB.
 
     """
     wavelength = SPEED_OF_LIGHT / freq
@@ -77,14 +71,16 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
     Lfs_one_way_db = 20*log10(4*pi*d/wavelength)
 
     if (radar):
-        assert(rcs is not None)
-        assert(bistatic is not None)
+        if (rcs is None):
+            raise ValueError("Radar cross section required in radar mode")
 
         # Radar object gain in dB, equation 3.23 in [2]:
         G_obj_db = 10*log10(4*pi*rcs/(wavelength**2))
 
         if (bistatic):
-            assert(d_rx is not None)
+            if (d_rx is None):
+                raise ValueError("Rx distance required in bistatic radar mode")
+
             Lfs_tx_db = Lfs_one_way_db
             Lfs_rx_db = 20*log10(4*pi*d_rx/wavelength)
             # Bistatic radar transmission loss in dB, equation 3.24 in [2]:
@@ -102,6 +98,16 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=None, d_rx=None):
 def dish_gain(diameter, freq):
     """Calculate parabolic dish gain
 
+    The gain in linear units is given by:
+
+    Gain = 4 * 𝜋 * Ae ∕ 𝜆**2,
+
+    where Ae is effective aperture given by:
+
+    Ae = 𝜂 * A,
+
+    and A represents the antenna's physical aperture area.
+
     Args:
         diameter : Diameter in m
         freq     : Frequency of interest in Hz
@@ -114,7 +120,7 @@ def dish_gain(diameter, freq):
     face_area = pi * (radius**2)  # assume circle
     wavelength = SPEED_OF_LIGHT / freq
 
-    # See Table 8-4 in [1]:
+    # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
     gain = 7*face_area/(wavelength**2)
     gain_db = 10*log10(gain)
 
@@ -122,12 +128,12 @@ def dish_gain(diameter, freq):
     return gain_db
 
 
-def coax_gain_nf(length_ft, Tl=T0):
-    """Compute coaxial RG6 transmission line gain and noise figure
+def coax_loss_nf(length_ft, Tl=T0):
+    """Compute the loss and noise figure of a coaxial RG6 transmission line
 
     Args:
-        length_ft : Line length in feet
-        Tl        : temperature of the line in Kelvin
+        length_ft : Line length in feet.
+        Tl        : temperature of the line in Kelvin.
 
     Returns:
         Tuple with line loss (dB) and noise figure (dB).
@@ -152,12 +158,13 @@ def coax_gain_nf(length_ft, Tl=T0):
 
 
 def total_noise_figure(nfs, gains):
-    """Calculate the overall noise figure of the receive system
+    """Calculate the overall noise figure of the receiver system
 
     Args:
-        nfs   : List with noise figures (dB) of cascaded linear devices, in
-                order.
-        gains : List with gains (dB) of cascaded linear devices, in order.
+        nfs   : List with the noise figures (in dB) corresponding to the
+                cascaded linear devices.
+        gains : List with the gains (also in dB) of the cascaded linear
+                devices, in the same order as given for "nfs".
 
     Note: The list of gains should not include the gain of the last device in
     the chain, as it is irrelevant for the overall noise figure computation.
@@ -190,15 +197,15 @@ def total_noise_figure(nfs, gains):
 def noise_fig_to_noise_temp(nf):
     """Convert noise figure to the effective input-noise temperature
 
-    Note that the noise figure is always referenced to a noise source at the
+    Note the noise figure is always referenced to a noise source at the
     standard noise temperature of T0 = 290 K. In contrast, the noise
     temperature is independent of the temperature of the noise source.
 
     Args:
-        nf : Noise figure in dB
+        nf : Noise figure in dB.
 
     Returns:
-        Noise temperature in K
+        Noise temperature in K.
 
     """
     nf_abs = util.db_to_abs(nf)
@@ -213,10 +220,10 @@ def noise_temp_to_noise_fig(Te):
     """Convert an effective input-noise temperature to a noise figure in dB
 
     Args:
-        Te : Noise temperature in K
+        Te : Noise temperature in K.
 
     Returns:
-        Noise figure in dB
+        Noise figure in dB.
 
     """
     # Noise factor
@@ -231,10 +238,10 @@ def rx_sys_noise_temp(Tar, Te):
     The receiver noise temperature is the sum of the effective input-noise
     temperature (Te) of the entire receiver seen as a blackbox and the antenna
     noise temperature (Tar). The Te term represents the noise introduced by the
-    cascaded linear components (e.g., the LNB, the coax line and e.g., the
-    radio interface) of the receiver. The Tar component, in turn, is the noise
-    captured by the antenna due to received cosmic noise and Earth blackbody
-    radiation. The simplified model is as follows:
+    cascaded linear components (e.g., the LNB, the coax line, and the radio
+    interface) of the receiver. The Tar component, in turn, is the noise
+    captured by the antenna due to the received cosmic noise and Earth
+    blackbody radiation. The simplified model is as follows:
 
     Rx Antenna (Tar) -----> Sum ----> Noise-free Gain Stage ---> Detector
                              ^
@@ -242,9 +249,9 @@ def rx_sys_noise_temp(Tar, Te):
                              |
                       Receiver Noise (Te)
 
-    Note that this is peculiar because we don't combine the antenna as another
-    cascaded device to the receiver. Instead, we sum the cascaded devices with
-    the antenna, based on this model. See Figure 8-24 in [1].
+    Note that this is peculiar because the antenna is not treated as another
+    cascaded device within the receiver. Instead, the antenna adds to the
+    cascaded devices. See Figure 8-24 in [1].
 
     As explained in [2], around equation 4.39, this is just a convenient choice
     in terms of where the effective input-noise temperature is observed. Note
@@ -254,19 +261,20 @@ def rx_sys_noise_temp(Tar, Te):
     noisy but otherwise equivalent two-port element, with an ideal noiseless
     source at its input [2]. Hence, if we group the entire receiver into a
     single equivalent two-port element, the Te term represents the noise
-    generated by the entire receiver. This noise has power k*Te*B. When
-    combined to the noise collected by the antenna, one obtaines the total
-    system noise temperature.
+    generated by the entire receiver, which has power k*Te*B. When combined to
+    the noise collected by the antenna, one obtaines the total system noise
+    temperature.
 
     Args:
-        Tar : Antenna noise temperature in K
-        Te  : Effective input-noise temperature in K
+        Tar : Antenna noise temperature in K.
+        Te  : Effective input-noise temperature in K.
 
     Returns:
-        The receiver system noise temperature in dB
+        The receiver system noise temperature in dB.
 
-    Note: here we return the noise temperature directly in dB. The dB form will
-    be directly subtracted in the C/N computation. See Equation 8-43 in [1].
+    Note: here we return the noise temperature directly in dB (more
+    specifically, dBK, given the temperature in K). The dB form will be
+    directly subtracted in the C/N computation. See Equation 8-43 in [1].
 
     """
 
@@ -283,22 +291,22 @@ def cnr(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
     """Compute the carrier-to-noise ratio (CNR) in dB
 
     Args:
-        eirp_db        : EIRP in dBW
-        path_loss_db   : Free-space path loss in dB
-        rx_ant_gain_db : Receiver antenna gain in dB
-        T_sys_db       : Receiver system noise temperature in dB
-        bw             : Nominal signal bandwidth
+        eirp_db        : EIRP in dBW.
+        path_loss_db   : Free-space path loss in dB.
+        rx_ant_gain_db : Receiver antenna gain in dB.
+        T_sys_db       : Receiver system noise temperature in dBK.
+        bw             : Nominal signal bandwidth.
 
     Returns:
-        CNR (also known as C/N) in dB
+        CNR (also known as C/N) in dB.
 
     """
-    # According to Equation 8-40 from [1], the noise power is given by N =
-    # k*Tsyst*bw, where k is Boltzmann’s constant, Tsyst is the receiver system
-    # noise temperature (in absolute units) and bw is the IF equivalent
-    # bandwidth. On the C/N computation in dB, N is in the denominator, and
-    # hence we can simply subtract k_db and B_db to compute C/N, see Equation
-    # 8-43 from [1].
+    # According to Equation 8-40 in [1], the noise power is given by N =
+    # k*Tsyst*bw, where k is the Boltzmann constant, Tsyst is the receiver
+    # system noise temperature (in absolute units) and bw is the IF equivalent
+    # bandwidth in Hz. On the C/N computation in dB, given that N is in the
+    # denominator, we can simply subtract k_db, Tsyst_db, and B_db. See
+    # Equation 8-43 in [1].
     k_db = -228.6  # Boltzmann’s constant (of 1.38e-23) in dB
     bw_db = 10*log10(bw)
 
@@ -309,7 +317,7 @@ def cnr(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
     logging.info("Rx Power:           {:6.2f} dBm".format(P_rx_dbm))
 
     # The ratio between the Rx antenna gain and the receiver noise temperature,
-    # usually known as G/T, is also a metric of interest, so log it:
+    # usually known as G/T, is also a metric of interest. Print it:
     g_over_t_db = rx_ant_gain_db - T_sys_db
     logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
 
@@ -324,10 +332,14 @@ def capacity(snr_db, bw):
     """Compute the channel capacity in bps
 
     Args:
-        snr_db : signal-to-noise ratio in dB
-        bw     : nominal bandwidth
+        snr_db : signal-to-noise ratio in dB.
+        bw     : nominal bandwidth.
+
+    Returns:
+        Capacity in bits per second (bps).
 
     """
     snr = util.db_to_abs(snr_db)
     c = bw * log2(1 + snr)
     logging.info("Capacity:           {}".format(util.format_rate(c)))
+    return c

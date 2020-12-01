@@ -43,7 +43,7 @@ def parser():
     tx_pwr_group.add_argument(
         '--tx-power',
         type=float,
-        help='Tx power feeding the antenna in dBW.'
+        help='Power feeding the Tx antenna in dBW.'
     )
     tx_dish_group = parser.add_mutually_exclusive_group()
     tx_dish_group.add_argument(
@@ -197,8 +197,11 @@ def analyze(args):
 
     # Compute the EIRP
     if (args.eirp is None):
-        eirp = calc.eirp(args.tx_power, args.tx_dish_gain, args.tx_dish_size,
-                         args.freq)
+        if args.tx_dish_gain is None:
+            tx_gain = calc.dish_gain(args.tx_dish_size, args.freq)
+        else:
+            tx_gain = args.tx_dish_gain
+        eirp = calc.eirp(args.tx_power, tx_gain)
         logging.info("Tx Power:           {:6.2f} kW".format(
             util.db_to_abs(args.tx_power)/1e3))
     else:
@@ -218,7 +221,7 @@ def analyze(args):
     else:
         dish_gain_db = args.rx_dish_gain
 
-    coax_loss_db, coax_noise_fig_db = calc.coax_gain_nf(args.coax_length)
+    coax_loss_db, coax_noise_fig_db = calc.coax_loss_nf(args.coax_length)
 
     if (args.lnb_noise_fig is None):
         lnb_noise_fig = calc.noise_temp_to_noise_fig(args.lnb_noise_temp)
