@@ -17,7 +17,7 @@ def get_parser():
     parser.add_argument(
         '--json',
         action='store_true',
-        help='Return results in a JSON-formatted string.'
+        help='Print results in JSON format.'
     )
     tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
     tx_pwr_group.add_argument(
@@ -176,17 +176,18 @@ def validate(parser, args):
                          "mode (--radar)")
 
 
-def analyze(args):
+def analyze(args, verbose=False):
     """Main link budget analysis
 
     Args:
         args : Populated argparse namespace object.
+        verbose : Verbose mode.
 
     Returns:
         Dictionary with the main link budget results.
 
     """
-    if (not args.json):
+    if (verbose and not args.json):
         logging.basicConfig(level=logging.INFO)
 
     sat_alt = 35786e3 if not args.radar else args.radar_alt
@@ -275,8 +276,8 @@ def analyze(args):
 
     }
 
-    if (args.json):
-        print(json.dumps(res))
+    if (verbose and args.json):
+        print(json.dumps(res, indent=4, ensure_ascii=True))
 
     return res
 
@@ -285,4 +286,4 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     validate(parser, args)
-    analyze(args)
+    analyze(args, verbose=True)
