@@ -6,6 +6,7 @@ References:
  [1] Couch, Leon W.. Digital & Analog Communication Systems.
  [2] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System
      (Master's thesis).
+ [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 
 """
 import logging
@@ -123,6 +124,36 @@ def dish_gain(diameter, freq):
     # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
     gain = 7*face_area/(wavelength**2)
     return 10*log10(gain)
+
+
+def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
+    """Compute the antenna noise temperature based on the atmosphere attenuation
+
+    Follow the theory in Section 4.5.2 of [3].
+
+    Args:
+
+        attn_db      : Total path attenuation (in dB) experienced through the
+                       atmosphere, including clear air and rain attenuation.
+        T_medium     : Medium temperature (in K) assumed for the rain.
+        coupling_eff : Sky noise coupling coefficient determining the fraction
+                       of incident sky noise energy output by the antenna.
+
+    Note:
+        - In [3], a medium temperature of 270 K is considered when computing
+          the sky noise temperature for rain. In contrast, a temperature of 290
+          K is considered when analyzing clear sky. The rationale is to be
+          confirmed.
+
+    """
+
+    # Sky noise temperature (Eq. 4.30)
+    T_sky = T_medium * (1 - (10**(-attn_db / 10)))
+
+    # Antenna noise temperature (Eq. 4.31)
+    T_a = coupling_eff * T_sky
+
+    return T_a
 
 
 def coax_loss_nf(length_ft, Tl=T0):
@@ -277,42 +308,93 @@ def rx_sys_noise_temp(Tar, Te):
     return Tsyst
 
 
-def cnr(eirp_db, path_loss_db, rx_ant_gain_db, T_sys_db, bw):
-    """Compute the carrier-to-noise ratio (CNR) in dB
+def g_over_t(rx_ant_gain_db, T_sys_db):
+    """Compute the G/T ratio in dB/K
+
+    Compute the ratio between the Rx antenna gain and the receiver system noise
+    temperature, known as G/T. This ratio determines the quality of the
+    satellite receiving system. The CNR is proportional to it, and the G/T
+    ratio represents the part of the CNR that can be improved based on the
+    receiver hardware alone. The other terms of the CNR are EIRP, slant range,
+    noise bandwidth, and downlink frequency, which are usually fixed for a
+    specific location and service.
+
+    Args:
+        rx_ant_gain_db : Receiver antenna gain in dB.
+        T_sys_db       : Receiver system noise temperature in dBK.
+
+    Returns:
+        G/T in decibels with units of dBK^−1 (or dB/K).
+
+    """
+    g_over_t_db = rx_ant_gain_db - T_sys_db
+    logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
+    return g_over_t_db
+
+
+def rx_power(eirp_db, path_loss_db, rx_ant_gain_db, atm_loss_db=0,
+             mispointing_db=0):
+    """Compute the received carrier power in dBW
 
     Args:
         eirp_db        : EIRP in dBW.
         path_loss_db   : Free-space path loss in dB.
         rx_ant_gain_db : Receiver antenna gain in dB.
-        T_sys_db       : Receiver system noise temperature in dBK.
-        bw             : Nominal signal bandwidth.
+        atm_loss_db    : Total atmosphere loss in dB.
+        mispointing_db : Antenna mispointing loss in dB.
 
     Returns:
-        CNR (also known as C/N) in dB.
+        Received power in dBW.
 
     """
+    P_rx_dbw = eirp_db - path_loss_db - atm_loss_db + rx_ant_gain_db \
+        - mispointing_db
+
+    logging.info("Rx Power:           {:6.2f} dBm".format(
+        util.dbw_to_dbm(P_rx_dbw)))
+
+    return P_rx_dbw
+
+
+def noise_power(T_sys_db, bw):
+    """Compute the receiver noise power in dBW
+
+    Args:
+        T_sys_db : Receiver system noise temperature in dBK.
+        bw       : Nominal signal bandwidth (also known as noise bandwidth).
+
+    Returns:
+        Receiver noise power in dBW.
+
+    """
+
     # According to Equation 8-40 in [1], the noise power is given by N =
     # k*Tsyst*bw, where k is the Boltzmann constant, Tsyst is the receiver
     # system noise temperature (in absolute units) and bw is the IF equivalent
-    # bandwidth in Hz. On the C/N computation in dB, given that N is in the
-    # denominator, we can simply subtract k_db, Tsyst_db, and B_db. See
-    # Equation 8-43 in [1].
+    # bandwidth in Hz.
     k_db = -228.6  # Boltzmann’s constant (of 1.38e-23) in dB
     bw_db = 10*log10(bw)
 
-    # The received power level at the antenna terminals is of interest, so
-    # print it it out:
-    P_rx_dbw = eirp_db - path_loss_db + rx_ant_gain_db
-    P_rx_dbm = P_rx_dbw + 30
-    logging.info("Rx Power:           {:6.2f} dBm".format(P_rx_dbm))
+    # Noise power:
+    N_dbw = k_db + T_sys_db + bw_db
+    logging.info("Noise Power:        {:6.2f} dBm".format(
+        util.dbw_to_dbm(N_dbw)))
 
-    # The ratio between the Rx antenna gain and the receiver noise temperature,
-    # usually known as G/T, is also a metric of interest. Print it:
-    g_over_t_db = rx_ant_gain_db - T_sys_db
-    logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
+    return N_dbw
 
-    # C/N, as computed in Equation 8-43 from [1]:
-    cnr_db = eirp_db - path_loss_db + g_over_t_db - k_db - bw_db
+
+def cnr(P_rx_dbw, N_dbw):
+    """Compute the carrier-to-noise ratio (CNR) in dB
+
+    Args:
+        P_rx_dbw : Received (carrier) power in dBW
+        N_dbw    : Receiver noise power in dBW
+
+    Returns:
+        CNR in dB.
+
+    """
+    cnr_db = P_rx_dbw - N_dbw
     logging.info("(C/N):              {:6.2f} dB".format(cnr_db))
 
     return cnr_db

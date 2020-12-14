@@ -9,6 +9,10 @@ def db_to_abs(val_db):
     return 10**(val_db/10)
 
 
+def dbw_to_dbm(val_db):
+    return val_db + 30
+
+
 def format_rate(rate):
     """Format data rate given in bps"""
 

@@ -5,7 +5,7 @@ import argparse
 from . import calc, pointing, util
 
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 
 def get_parser():
@@ -69,11 +69,18 @@ def get_parser():
         type=float,
         help='Parabolic antenna (dish) gain in dBi.'
     )
-    parser.add_argument(
+    sky_noise_group = parser.add_mutually_exclusive_group(required=True)
+    sky_noise_group.add_argument(
         '--antenna-noise-temp',
-        required=True,
         type=float,
         help='Receive antenna\'s noise temperature in K.'
+    )
+    sky_noise_group.add_argument(
+        '--atmospheric-loss',
+        type=float,
+        help='Attenuation in dB experienced through the atmosphere. It should '
+        'always include the clear air attenuation, and it could also include '
+        'other effects such as rain attenuation'
     )
     lnb_noise_group = parser.add_mutually_exclusive_group(required=True)
     lnb_noise_group.add_argument(
@@ -106,31 +113,35 @@ def get_parser():
         help='Receiver\'s noise figure in dB.'
     )
     parser.add_argument(
+        '--mispointing-loss',
+        type=float,
+        default=0,
+        help='Loss in dB due to antenna mispointing'
+    )
+    pos_p = parser.add_argument_group('sat/rx positioning options')
+    pos_p.add_argument(
         '--sat-long',
-        required=True,
         type=float,
         help='Satellite\'s longitude. Negative to the West and positive to '
         'the East'
     )
-    parser.add_argument(
-        '--sat-lat',
-        type=float,
-        help='Satellite\'s latitude. Positive to the North and negative to '
-        'the South'
-    )
-    parser.add_argument(
+    pos_p.add_argument(
         '--rx-long',
-        required=True,
         type=float,
-        help='Receive station\'s longitude. Negative to the West and positive '
+        help='Rx station\'s longitude. Negative to the West and positive '
         'to the East'
     )
-    parser.add_argument(
+    pos_p.add_argument(
         '--rx-lat',
-        required=True,
         type=float,
-        help='Receive station\'s latitude. Positive to the North and negative '
+        help='Rx station\'s latitude. Positive to the North and negative '
         'to the South'
+    )
+    pos_p.add_argument(
+        '--slant-range',
+        type=float,
+        help='Slant path length in km between the Rx station and the '
+        'satellite or reflector'
     )
     radar_p = parser.add_argument_group('radar options')
     radar_p.add_argument(
@@ -175,6 +186,27 @@ def validate(parser, args):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
 
+    # Mutual exclusion between "--slant-range" and the rx/sat positioning args
+    pos_args = [args.sat_long, args.rx_long, args.rx_lat]
+    pos_arg_labels = ['--sat-long', '--rx-long', '--rx-lat']
+    missing_pos_args = []
+    defined_pos_args = []
+    for arg, label in zip(pos_args, pos_arg_labels):
+        if (arg is None):
+            missing_pos_args.append(label)
+        else:
+            defined_pos_args.append(label)
+    if (args.slant_range is None and len(missing_pos_args) > 0):
+        parser.error("the following arguments are required: {}".format(
+            ", ".join(missing_pos_args)
+        ))
+    elif (args.slant_range is not None and len(defined_pos_args) > 0):
+        parser.error("argument{} {}: not allowed with argument "
+                     "--slant-range".format(
+                         "s" if len(defined_pos_args) > 1 else "",
+                         ", ".join(defined_pos_args))
+                     )
+
 
 def analyze(args, verbose=False):
     """Main link budget analysis
@@ -190,12 +222,17 @@ def analyze(args, verbose=False):
     if (verbose and not args.json):
         logging.basicConfig(level=logging.INFO)
 
+    # -------- Look angles --------
     sat_alt = 35786e3 if not args.radar else args.radar_alt
 
-    elevation, azimuth, slant_range = pointing.look_angles(
-        args.sat_long, args.rx_long, args.rx_lat, sat_alt)
+    if (args.slant_range is None):
+        elevation, azimuth, slant_range = pointing.look_angles(
+            args.sat_long, args.rx_long, args.rx_lat, sat_alt)
+    else:
+        elevation = azimuth = None
+        slant_range = args.slant_range * 1e3  # km to m
 
-    # Compute the EIRP
+    # -------- EIRP --------
     if (args.eirp is None):
         if args.tx_dish_gain is None:
             tx_gain = calc.dish_gain(args.tx_dish_size, args.freq)
@@ -208,21 +245,35 @@ def analyze(args, verbose=False):
     else:
         eirp = args.eirp
 
-    logging.info("EIRP:               {:6.2f} dBW ({:6.2f} kW)".format(
-        eirp, util.db_to_abs(eirp)/1e3))
+    logging.info("EIRP:               {:6.2f} dBW".format(eirp))
 
+    # -------- Path loss --------
     path_loss_db = calc.path_loss(slant_range, args.freq, args.radar,
                                   args.radar_cross_section,
                                   args.radar_bistatic)
     # TODO support bistatic radar. Add distance from radar object to rx
     # station.
 
+    # When defined, the atmospheric loss defines the antenna noise temperature
+    # on reception. It also adds to the free-space path loss. On radar systems,
+    # assume the atmospheric loss is experienced twice.
+    if (args.atmospheric_loss is None):
+        atmospheric_loss_db = 0
+    elif (args.radar):
+        atmospheric_loss_db = 2 * args.atmospheric_loss
+    else:
+        atmospheric_loss_db = args.atmospheric_loss
+
+    logging.info("Atmospheric loss:   {:6.2f} dB".format(atmospheric_loss_db))
+
+    # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
         dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq)
         logging.info("Rx dish gain:       {:6.2f} dB".format(dish_gain_db))
     else:
         dish_gain_db = args.rx_dish_gain
 
+    # -------- Noise figure --------
     coax_loss_db, coax_noise_fig_db = calc.coax_loss_nf(args.coax_length)
 
     if (args.lnb_noise_fig is None):
@@ -237,19 +288,37 @@ def analyze(args, verbose=False):
         [args.lnb_gain, -coax_loss_db]
     )
 
+    # -------- System noise temperature --------
     effective_input_noise_temp = calc.noise_fig_to_noise_temp(noise_fig_db)
 
-    logging.info("Antenna noise temp: {:6.2f} K".format(
-        args.antenna_noise_temp))
     logging.info("Input-noise temp:   {:6.2f} K".format(
         effective_input_noise_temp))
 
-    T_syst = calc.rx_sys_noise_temp(args.antenna_noise_temp,
+    if (args.antenna_noise_temp is None):
+        antenna_noise_temp = calc.antenna_noise_temp(args.atmospheric_loss)
+        # NOTE: consider the atmospheric loss only once here even if analyzing
+        # a radar system. This call determines the sky's contribution to the Rx
+        # antenna noise temperature.
+    else:
+        antenna_noise_temp = args.antenna_noise_temp
+
+    logging.info("Antenna noise temp: {:6.2f} K".format(antenna_noise_temp))
+
+    T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
                                     effective_input_noise_temp)
     T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
 
-    cnr = calc.cnr(eirp, path_loss_db, dish_gain_db, T_syst_db, args.if_bw)
+    # -------- Received Power, Noise Power, CNR, and other metrics --------
+    P_rx_dbw = calc.rx_power(eirp, path_loss_db, dish_gain_db,
+                             atmospheric_loss_db, args.mispointing_loss)
 
+    N_dbw = calc.noise_power(T_syst_db, args.if_bw,)
+
+    g_over_t_db = calc.g_over_t(dish_gain_db, T_syst_db)
+
+    cnr = calc.cnr(P_rx_dbw,  N_dbw)
+
+    # -------- Capacity --------
     capacity = calc.capacity(cnr, args.if_bw)
 
     # Results
@@ -261,6 +330,7 @@ def analyze(args, verbose=False):
         },
         'eirp_db': eirp,
         'path_loss_db': path_loss_db,
+        'atmospheric_loss_db': atmospheric_loss_db,
         'rx_dish_gain_db': dish_gain_db,
         'noise_fig_db': {
             'lnb': lnb_noise_fig,
@@ -271,6 +341,11 @@ def analyze(args, verbose=False):
             'effective_input': effective_input_noise_temp,
             'system': T_syst
         },
+        'power_dbw': {
+            'carrier': P_rx_dbw,
+            'noise':  N_dbw
+        },
+        'g_over_t_db': g_over_t_db,
         'cnr_db': cnr,
         'capacity_bps': capacity
 

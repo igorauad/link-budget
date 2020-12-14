@@ -78,6 +78,14 @@ class TestBudgetCalc(unittest.TestCase):
             places=1
         )
 
+    def test_antenna_noise_temp(self):
+        # Example 4.9 in [3]
+        self.assertAlmostEqual(
+            calc.antenna_noise_temp(attn_db=3.4),
+            147,  # expected antenna noise temperature in K
+            places=0
+        )
+
     def test_coax_loss_nf(self):
         # Study aid example SA8-1 from [1]:
         loss_db, nf = calc.coax_loss_nf(length_ft=110, Tl=290)
@@ -111,8 +119,10 @@ class TestBudgetCalc(unittest.TestCase):
 
     def test_cnr(self):
         # Study aid example SA8-1 from [1]:
-        cnr = calc.cnr(eirp_db=52, path_loss_db=205.73, rx_ant_gain_db=32.96,
-                       T_sys_db=18.01, bw=24e6)
+        C = calc.rx_power(eirp_db=52, path_loss_db=205.73,
+                          rx_ant_gain_db=32.96)
+        N = calc.noise_power(T_sys_db=18.01, bw=24e6)
+        cnr = calc.cnr(C, N)
         self.assertAlmostEqual(cnr, 16.03, places=1)
 
     def test_capacity(self):
