@@ -193,9 +193,9 @@ def validate(parser, args):
                      "using option --tx-power")
 
     if (args.radar):
-        if (args.radar_alt is None):
+        if (args.slant_range is None and args.radar_alt is None):
             parser.error("Argument --radar-alt is required in radar mode "
-                         "(--radar)")
+                         "if the --slant-range argument is not provided")
         if (args.radar_cross_section is None):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
@@ -237,9 +237,11 @@ def analyze(args, verbose=False):
         logging.basicConfig(level=logging.INFO)
 
     # -------- Look angles --------
-    sat_alt = 35786e3 if not args.radar else args.radar_alt
-
     if (args.slant_range is None):
+        # Satellite altitude
+        sat_alt = 35786e3 if not args.radar else args.radar_alt
+
+        # Look angles
         elevation, azimuth, slant_range = pointing.look_angles(
             args.sat_long, args.rx_long, args.rx_lat, sat_alt)
     else:

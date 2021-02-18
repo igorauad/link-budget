@@ -81,6 +81,7 @@ class TestBudgetAnalysis(unittest.TestCase):
         # Based on [2]. Most of the calculation is in Chapters 10 and 11. Other
         # important sections are highlighted below.
         parser = main.get_parser()
+        radar_cross_section = 0.065 * 9.49e12  # See Section 10.2
         args = parser.parse_args(
             ['--eirp', '55.6',
              '--freq', '1296e6',
@@ -92,24 +93,14 @@ class TestBudgetAnalysis(unittest.TestCase):
              '--lnb-gain', '36.2',  # LNA gain in Table 8.4
              '--coax-length', '32.8',  # 32.8 ft ~= 10 m
              '--rx-noise-fig', '10',  # See Table 8.4
-             '--sat-long', '-172',  # Arbitrary moon longitude
-             '--rx-long', '-46.6333',  # Arbitrary Rx position
-             '--rx-lat', '-23.5505',  # Arbitrary Rx position
+             '--slant-range', '364288',  # See Section 10.2
              '--radar',
-             '--radar-alt', '355600e3',  # Earth surface to moon surface
-             # distance
-             '--radar-cross-section', '0.61685e12']
+             '--radar-cross-section', str(radar_cross_section)]
         )
         res = main.analyze(args)
-        self.assertAlmostEqual(res['cnr_db'], 5.46, places=2)
-        # In [2], the path loss is computed directly based on the distance
-        # between the ground station and the moon, as given by the MoonSked
-        # software. In contrast, the above example assumes arbitrary Rx and
-        # moon positions. The moon is assumed to be above latitude 0 (like a
-        # GEO satellite) and at an arbitrary longitude. The adopted values are
-        # such that the transmission loss matches the 270.3 dB loss used in
-        # [2]. Nevertheless, the final result still differs slightly from the
-        # one presented in [2] due to rounding of intermediate results.
+        self.assertAlmostEqual(res['cnr_db'], 5.51, places=2)
+        # The final result differs slightly from the one presented in [2] due
+        # to various rounding of intermediate results.
 
     def test_opts(self):
         """Test program options"""
