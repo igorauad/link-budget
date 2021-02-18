@@ -66,14 +66,14 @@ class TestBudgetCalc(unittest.TestCase):
     def test_dish_gain(self):
         # Example 8-5 in [1]:
         self.assertAlmostEqual(
-            calc.dish_gain(diameter=3.05, freq=4e9),
+            calc.dish_gain(diameter=3.05, freq=4e9, efficiency=0.557),
             39.6,  # expected gain in dB
             places=1
         )
 
         # Using [4] with an aperture efficiency of 56%:
         self.assertAlmostEqual(
-            calc.dish_gain(diameter=0.45, freq=12.45e9),
+            calc.dish_gain(diameter=0.45, freq=12.45e9, efficiency=0.56),
             32.84568544,  # expected gain in dB
             places=1
         )

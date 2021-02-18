@@ -96,7 +96,7 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
     return Lfs_db
 
 
-def dish_gain(diameter, freq):
+def dish_gain(diameter, freq, efficiency):
     """Calculate parabolic dish gain
 
     The gain in linear units is given by:
@@ -110,8 +110,9 @@ def dish_gain(diameter, freq):
     and A represents the antenna's physical aperture area.
 
     Args:
-        diameter : Diameter in m
-        freq     : Frequency of interest in Hz
+        diameter   : Diameter in m
+        freq       : Frequency of interest in Hz
+        efficiency : Aperture efficiency (typically within 0.5 to 0.75)
 
     Returns:
         Gain in dB
@@ -122,7 +123,7 @@ def dish_gain(diameter, freq):
     wavelength = SPEED_OF_LIGHT / freq
 
     # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
-    gain = 7*face_area/(wavelength**2)
+    gain = efficiency * 4 * pi * face_area / (wavelength**2)
     return 10*log10(gain)
 
 

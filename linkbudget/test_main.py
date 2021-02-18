@@ -22,6 +22,7 @@ class TestBudgetAnalysis(unittest.TestCase):
              '--freq', '12.45e9',
              '--if-bw', '24e6',
              '--rx-dish-size', '0.46',
+             '--rx-dish-efficiency', '0.557',
              '--antenna-noise-temp', '20',
              '--lnb-noise-fig', '0.6',
              '--lnb-gain', '40',
@@ -114,11 +115,12 @@ class TestBudgetAnalysis(unittest.TestCase):
         """Test program options"""
         parser = main.get_parser()
 
-        # Test EIRP determined indirectly
+        # Base parameters: same as the ones adopted in "test_ku_band_example"
         base_args = [
             '--freq', '12.45e9',
             '--if-bw', '24e6',
             '--rx-dish-size', '0.46',
+            '--rx-dish-efficiency', '0.557',
             '--antenna-noise-temp', '20',
             '--lnb-noise-fig', '0.6',
             '--lnb-gain', '40',
@@ -129,7 +131,7 @@ class TestBudgetAnalysis(unittest.TestCase):
             '--rx-lat', '29.71'
         ]
 
-        # EIRP based on the Tx power and the Tx dish gain
+        # Set the EIRP of 52 dBW indirectly through the Tx power and dish gain
         args = parser.parse_args(base_args +
                                  ['--tx-power', '20',
                                   '--tx-dish-gain', '32'])
@@ -137,10 +139,13 @@ class TestBudgetAnalysis(unittest.TestCase):
         res = main.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
 
-        # EIRP based on the Tx power and the Tx dish size
+        # Set the EIRP based on the Tx power and the Tx dish size. Consider a
+        # Tx power of 5 dBW, and a 2.4m dish with 55.7% aperture efficiency,
+        # which should lead to an EIRP of 52.37 dBW
         args = parser.parse_args(base_args +
                                  ['--tx-power', '5',
-                                  '--tx-dish-size', '2.4'])  # 52.37 dBW EIRP
+                                  '--tx-dish-size', '2.4',
+                                  '--tx-dish-efficiency', '0.557'])
         main.validate(parser, args)
         res = main.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95 + 0.37, places=2)
@@ -164,7 +169,7 @@ class TestBudgetAnalysis(unittest.TestCase):
             '--rx-long', '-82.43',
             '--rx-lat', '29.71'
         ]
-        args = parser.parse_args(base_args + ['--rx-dish-size', '0.46'])
+        args = parser.parse_args(base_args + ['--rx-dish-gain', '33.024'])
         main.validate(parser, args)
         res = main.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
@@ -175,6 +180,7 @@ class TestBudgetAnalysis(unittest.TestCase):
             '--freq', '12.45e9',
             '--if-bw', '24e6',
             '--rx-dish-size', '0.46',
+            '--rx-dish-efficiency', '0.557',
             '--antenna-noise-temp', '20',
             '--lnb-noise-temp', '42.964',
             '--lnb-gain', '40',

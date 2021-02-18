@@ -45,6 +45,13 @@ def get_parser():
         'Used when the power is specified through option --tx-power'
     )
     parser.add_argument(
+        '--tx-dish-efficiency',
+        type=float,
+        default=0.56,
+        help='Aperture efficiency of the parabolic antenna used for '
+        'transmission. Considered when the dish is specified by size.'
+    )
+    parser.add_argument(
         '--freq',
         required=True,
         type=float,
@@ -68,6 +75,13 @@ def get_parser():
         '--rx-dish-gain',
         type=float,
         help='Parabolic antenna (dish) gain in dBi.'
+    )
+    parser.add_argument(
+        '--rx-dish-efficiency',
+        type=float,
+        default=0.56,
+        help='Aperture efficiency of the parabolic antenna used for '
+        'reception. Considered when the dish is specified by size.'
     )
     sky_noise_group = parser.add_mutually_exclusive_group(required=True)
     sky_noise_group.add_argument(
@@ -235,7 +249,8 @@ def analyze(args, verbose=False):
     # -------- EIRP --------
     if (args.eirp is None):
         if args.tx_dish_gain is None:
-            tx_gain = calc.dish_gain(args.tx_dish_size, args.freq)
+            tx_gain = calc.dish_gain(args.tx_dish_size, args.freq,
+                                     args.tx_dish_efficiency)
             logging.info("Tx dish gain:       {:6.2f} dB".format(tx_gain))
         else:
             tx_gain = args.tx_dish_gain
@@ -268,7 +283,8 @@ def analyze(args, verbose=False):
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
-        dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq)
+        dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq,
+                                      args.rx_dish_efficiency)
         logging.info("Rx dish gain:       {:6.2f} dB".format(dish_gain_db))
     else:
         dish_gain_db = args.rx_dish_gain
