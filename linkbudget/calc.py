@@ -12,7 +12,6 @@ References:
 from math import log10, pi, log2
 from . import util
 
-
 SPEED_OF_LIGHT = 299792458  # in m/s
 T0 = 290  # standard room temperature in Kelvin
 
@@ -68,26 +67,26 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
     wavelength = SPEED_OF_LIGHT / freq
 
     # Eq. 8-11 from [1], or Eq. 3.16 from [2]:
-    Lfs_one_way_db = 20*log10(4*pi*d/wavelength)
+    Lfs_one_way_db = 20 * log10(4 * pi * d / wavelength)
 
     if (radar):
         if (rcs is None):
             raise ValueError("Radar cross section required in radar mode")
 
         # Radar object gain in dB, equation 3.23 in [2]:
-        G_obj_db = 10*log10(4*pi*rcs/(wavelength**2))
+        G_obj_db = 10 * log10(4 * pi * rcs / (wavelength**2))
 
         if (bistatic):
             if (d_rx is None):
                 raise ValueError("Rx distance required in bistatic radar mode")
 
             Lfs_tx_db = Lfs_one_way_db
-            Lfs_rx_db = 20*log10(4*pi*d_rx/wavelength)
+            Lfs_rx_db = 20 * log10(4 * pi * d_rx / wavelength)
             # Bistatic radar transmission loss in dB, equation 3.24 in [2]:
             Lfs_db = Lfs_tx_db + Lfs_rx_db - G_obj_db
         else:
             # Monostatic radar transmission loss in dB, equation 3.26 in [2]:
-            Lfs_db = 2*Lfs_one_way_db - G_obj_db
+            Lfs_db = 2 * Lfs_one_way_db - G_obj_db
     else:
         Lfs_db = Lfs_one_way_db
 
@@ -123,7 +122,7 @@ def dish_gain(diameter, freq, efficiency):
 
     # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
     gain = efficiency * 4 * pi * face_area / (wavelength**2)
-    return 10*log10(gain)
+    return 10 * log10(gain)
 
 
 def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
@@ -167,7 +166,7 @@ def coax_loss_nf(length_ft, Tl=T0):
         Tuple with line loss (dB) and noise figure (dB).
 
     """
-    loss_db_per_ft = 8/100
+    loss_db_per_ft = 8 / 100
     loss_db = length_ft * loss_db_per_ft
     loss = util.db_to_abs(loss_db)
 
@@ -176,8 +175,8 @@ def coax_loss_nf(length_ft, Tl=T0):
     # on Example 8-2 in [1]. More generally, any passive two-port element (or
     # attenuator) at room temperature will have this property (noise figure =
     # attenuation in dB), see Equation 4.22 in [2].
-    noise_factor = 1 + (Tl/T0)*(loss - 1)
-    noise_fig = 10*log10(noise_factor)
+    noise_factor = 1 + (Tl / T0) * (loss - 1)
+    noise_fig = 10 * log10(noise_factor)
 
     util.log_result("Coax loss", "{:.2f} dB".format(loss_db))
     util.log_result("Coax noise figure", "{:.2f} dB".format(noise_fig))
@@ -202,9 +201,9 @@ def total_noise_figure(nfs, gains):
 
     """
 
-    assert(len(nfs) > 0)
-    assert(len(gains) > 0)
-    assert(len(gains) == len(nfs) - 1)
+    assert (len(nfs) > 0)
+    assert (len(gains) > 0)
+    assert (len(gains) == len(nfs) - 1)
 
     if (len(nfs) == 1):
         return nfs[0]
@@ -217,7 +216,7 @@ def total_noise_figure(nfs, gains):
         G_prod *= util.db_to_abs(gains[i])
         F += (nf_abs - 1) / G_prod
 
-    F_db = 10*log10(F)
+    F_db = 10 * log10(F)
     util.log_result("Rx noise figure", "{:.2f} dB".format(F_db))
     return F_db
 
@@ -255,9 +254,9 @@ def noise_temp_to_noise_fig(Te):
 
     """
     # Noise factor
-    nf_abs = 1 + Te/T0
+    nf_abs = 1 + Te / T0
     # Return the noise figure
-    return 10*log10(nf_abs)
+    return 10 * log10(nf_abs)
 
 
 def rx_sys_noise_temp(Tar, Te):
@@ -332,7 +331,10 @@ def g_over_t(rx_ant_gain_db, T_sys_db):
     return g_over_t_db
 
 
-def rx_power(eirp_db, path_loss_db, rx_ant_gain_db, atm_loss_db=0,
+def rx_power(eirp_db,
+             path_loss_db,
+             rx_ant_gain_db,
+             atm_loss_db=0,
              mispointing_db=0):
     """Compute the received carrier power in dBW
 
@@ -350,8 +352,7 @@ def rx_power(eirp_db, path_loss_db, rx_ant_gain_db, atm_loss_db=0,
     P_rx_dbw = eirp_db - path_loss_db - atm_loss_db + rx_ant_gain_db \
         - mispointing_db
 
-    util.log_result("Rx Power", "{:.2f} dBm".format(
-        util.dbw_to_dbm(P_rx_dbw)))
+    util.log_result("Rx Power", "{:.2f} dBm".format(util.dbw_to_dbm(P_rx_dbw)))
 
     return P_rx_dbw
 
@@ -373,12 +374,11 @@ def noise_power(T_sys_db, bw):
     # system noise temperature (in absolute units) and bw is the IF equivalent
     # bandwidth in Hz.
     k_db = -228.6  # Boltzmann’s constant (of 1.38e-23) in dB
-    bw_db = 10*log10(bw)
+    bw_db = 10 * log10(bw)
 
     # Noise power:
     N_dbw = k_db + T_sys_db + bw_db
-    util.log_result("Noise Power", "{:.2f} dBm".format(
-        util.dbw_to_dbm(N_dbw)))
+    util.log_result("Noise Power", "{:.2f} dBm".format(util.dbw_to_dbm(N_dbw)))
 
     return N_dbw
 

@@ -3,11 +3,11 @@ import logging
 
 
 def abs_to_db(val):
-    return 10*log10(val)
+    return 10 * log10(val)
 
 
 def db_to_abs(val_db):
-    return 10**(val_db/10)
+    return 10**(val_db / 10)
 
 
 def dbw_to_dbm(val_db):

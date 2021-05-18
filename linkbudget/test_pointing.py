@@ -83,10 +83,7 @@ class TestPointing(unittest.TestCase):
 
         for info in setup_info:
             elevation, azimuth, slant_range = pointing.look_angles(
-                info['sat_long'],
-                info['rx_long'],
-                info['rx_lat']
-            )
+                info['sat_long'], info['rx_long'], info['rx_lat'])
             slant_range_km = slant_range / 1e3
 
             self.assertAlmostEqual(elevation, info['elevation'], delta=0.1)

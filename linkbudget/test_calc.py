@@ -25,8 +25,7 @@ class TestBudgetCalc(unittest.TestCase):
         self.assertAlmostEqual(
             calc.path_loss(d=40e6, freq=11e9),
             205.3,  # expected path loss
-            places=1
-        )
+            places=1)
 
         # Examples based on Section 10.2 from [2]:
 
@@ -34,25 +33,26 @@ class TestBudgetCalc(unittest.TestCase):
         self.assertAlmostEqual(
             calc.path_loss(d=364288e3, freq=1296e6),
             206,  # expected path loss
-            delta=0.1
-        )
+            delta=0.1)
 
         # Monostatic radar path loss
         rcs = 0.065 * 9.49e12
         self.assertAlmostEqual(
             calc.path_loss(d=364288e3, freq=1296e6, radar=True, rcs=rcs),
             270,  # expected transmission loss
-            delta=0.25
-        )
+            delta=0.25)
 
         # Equivalent bistatic radar path loss (assuming the object-to-Rx
         # distance is equal to the Tx-to-object distance)
         self.assertAlmostEqual(
-            calc.path_loss(d=364288e3, freq=1296e6, radar=True, rcs=rcs,
-                           bistatic=True, d_rx=364288e3),
+            calc.path_loss(d=364288e3,
+                           freq=1296e6,
+                           radar=True,
+                           rcs=rcs,
+                           bistatic=True,
+                           d_rx=364288e3),
             270,  # expected transmission loss
-            delta=0.25
-        )
+            delta=0.25)
 
         # The RCS must be provided in radar mode
         with self.assertRaises(ValueError):
@@ -60,7 +60,10 @@ class TestBudgetCalc(unittest.TestCase):
 
         # The Rx distance must be provided in bistatic radar mode
         with self.assertRaises(ValueError):
-            calc.path_loss(d=364288e3, freq=1296e6, radar=True, rcs=rcs,
+            calc.path_loss(d=364288e3,
+                           freq=1296e6,
+                           radar=True,
+                           rcs=rcs,
                            bistatic=True)
 
     def test_dish_gain(self):
@@ -68,23 +71,20 @@ class TestBudgetCalc(unittest.TestCase):
         self.assertAlmostEqual(
             calc.dish_gain(diameter=3.05, freq=4e9, efficiency=0.557),
             39.6,  # expected gain in dB
-            places=1
-        )
+            places=1)
 
         # Using [4] with an aperture efficiency of 56%:
         self.assertAlmostEqual(
             calc.dish_gain(diameter=0.45, freq=12.45e9, efficiency=0.56),
             32.84568544,  # expected gain in dB
-            places=1
-        )
+            places=1)
 
     def test_antenna_noise_temp(self):
         # Example 4.9 in [3]
         self.assertAlmostEqual(
             calc.antenna_noise_temp(attn_db=3.4),
             147,  # expected antenna noise temperature in K
-            places=0
-        )
+            places=0)
 
     def test_coax_loss_nf(self):
         # Study aid example SA8-1 from [1]:
@@ -119,7 +119,8 @@ class TestBudgetCalc(unittest.TestCase):
 
     def test_cnr(self):
         # Study aid example SA8-1 from [1]:
-        C = calc.rx_power(eirp_db=52, path_loss_db=205.73,
+        C = calc.rx_power(eirp_db=52,
+                          path_loss_db=205.73,
                           rx_ant_gain_db=32.96)
         N = calc.noise_power(T_sys_db=18.01, bw=24e6)
         cnr = calc.cnr(C, N)

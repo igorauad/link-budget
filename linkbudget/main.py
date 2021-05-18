@@ -4,7 +4,6 @@ import logging
 import argparse
 from . import calc, pointing, util
 
-
 __version__ = "0.1.2"
 
 
@@ -12,183 +11,140 @@ def get_parser():
     """Command-line arguments"""
     parser = argparse.ArgumentParser(
         description="Link Budget Calculator",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument(
-        '--json',
-        action='store_true',
-        help='Print results in JSON format.'
-    )
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--json',
+                        action='store_true',
+                        help='Print results in JSON format.')
     tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
-    tx_pwr_group.add_argument(
-        '--eirp',
-        type=float,
-        help='EIRP in dBW.'
-    )
-    tx_pwr_group.add_argument(
-        '--tx-power',
-        type=float,
-        help='Power feeding the Tx antenna in dBW.'
-    )
+    tx_pwr_group.add_argument('--eirp', type=float, help='EIRP in dBW.')
+    tx_pwr_group.add_argument('--tx-power',
+                              type=float,
+                              help='Power feeding the Tx antenna in dBW.')
     tx_dish_group = parser.add_mutually_exclusive_group()
     tx_dish_group.add_argument(
         '--tx-dish-size',
         type=float,
         help='Diameter in meters of the parabolic antenna used for '
         'transmission. Used when the power is specified through option '
-        '--tx-power'
-    )
+        '--tx-power')
     tx_dish_group.add_argument(
         '--tx-dish-gain',
         type=float,
         help='Gain in dBi of the parabolic antenna used for transmission. '
-        'Used when the power is specified through option --tx-power'
-    )
+        'Used when the power is specified through option --tx-power')
     parser.add_argument(
         '--tx-dish-efficiency',
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
-        'transmission. Considered when the dish is specified by size.'
-    )
+        'transmission. Considered when the dish is specified by size.')
     parser.add_argument(
         '--freq',
         required=True,
         type=float,
         help='Downlink carrier frequency in Hz for satellite signals or '
         'simply the signal frequency in Hz for radar (passively reflected) '
-        'signals.'
-    )
-    parser.add_argument(
-        '--if-bw',
-        required=True,
-        type=float,
-        help='IF bandwidth in Hz.'
-    )
+        'signals.')
+    parser.add_argument('--if-bw',
+                        required=True,
+                        type=float,
+                        help='IF bandwidth in Hz.')
     rx_dish_group = parser.add_mutually_exclusive_group(required=True)
-    rx_dish_group.add_argument(
-        '--rx-dish-size',
-        type=float,
-        help='Parabolic antenna (dish) diameter in m.'
-    )
-    rx_dish_group.add_argument(
-        '--rx-dish-gain',
-        type=float,
-        help='Parabolic antenna (dish) gain in dBi.'
-    )
+    rx_dish_group.add_argument('--rx-dish-size',
+                               type=float,
+                               help='Parabolic antenna (dish) diameter in m.')
+    rx_dish_group.add_argument('--rx-dish-gain',
+                               type=float,
+                               help='Parabolic antenna (dish) gain in dBi.')
     parser.add_argument(
         '--rx-dish-efficiency',
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
-        'reception. Considered when the dish is specified by size.'
-    )
+        'reception. Considered when the dish is specified by size.')
     sky_noise_group = parser.add_mutually_exclusive_group(required=True)
     sky_noise_group.add_argument(
         '--antenna-noise-temp',
         type=float,
-        help='Receive antenna\'s noise temperature in K.'
-    )
+        help='Receive antenna\'s noise temperature in K.')
     sky_noise_group.add_argument(
         '--atmospheric-loss',
         type=float,
         help='Attenuation in dB experienced through the atmosphere. It should '
         'always include the clear air attenuation, and it could also include '
-        'other effects such as rain attenuation'
-    )
+        'other effects such as rain attenuation')
     lnb_noise_group = parser.add_mutually_exclusive_group(required=True)
-    lnb_noise_group.add_argument(
-        '--lnb-noise-fig',
-        type=float,
-        help='LNB\'s noise figure in dB.'
-    )
-    lnb_noise_group.add_argument(
-        '--lnb-noise-temp',
-        type=float,
-        help='LNB\'s noise temperature in K.'
-    )
-    parser.add_argument(
-        '--lnb-gain',
-        required=True,
-        type=float,
-        help='LNB\'s gain.'
-    )
+    lnb_noise_group.add_argument('--lnb-noise-fig',
+                                 type=float,
+                                 help='LNB\'s noise figure in dB.')
+    lnb_noise_group.add_argument('--lnb-noise-temp',
+                                 type=float,
+                                 help='LNB\'s noise temperature in K.')
+    parser.add_argument('--lnb-gain',
+                        required=True,
+                        type=float,
+                        help='LNB\'s gain.')
     parser.add_argument(
         '--coax-length',
         required=True,
         type=float,
         help='Length of the coaxial transmission line between the LNB and the '
-        'receiver in ft.'
-    )
-    parser.add_argument(
-        '--rx-noise-fig',
-        required=True,
-        type=float,
-        help='Receiver\'s noise figure in dB.'
-    )
-    parser.add_argument(
-        '--mispointing-loss',
-        type=float,
-        default=0,
-        help='Loss in dB due to antenna mispointing'
-    )
+        'receiver in ft.')
+    parser.add_argument('--rx-noise-fig',
+                        required=True,
+                        type=float,
+                        help='Receiver\'s noise figure in dB.')
+    parser.add_argument('--mispointing-loss',
+                        type=float,
+                        default=0,
+                        help='Loss in dB due to antenna mispointing')
     pos_p = parser.add_argument_group('sat/rx positioning options')
     pos_p.add_argument(
         '--sat-long',
         type=float,
         help='Satellite\'s longitude. Negative to the West and positive to '
-        'the East'
-    )
+        'the East')
     pos_p.add_argument(
         '--rx-long',
         type=float,
         help='Rx station\'s longitude. Negative to the West and positive '
-        'to the East'
-    )
+        'to the East')
     pos_p.add_argument(
         '--rx-lat',
         type=float,
         help='Rx station\'s latitude. Positive to the North and negative '
-        'to the South'
-    )
+        'to the South')
     pos_p.add_argument(
         '--slant-range',
         type=float,
         help='Slant path length in km between the Rx station and the '
-        'satellite or reflector'
-    )
+        'satellite or reflector')
     radar_p = parser.add_argument_group('radar options')
     radar_p.add_argument(
         '--radar',
         default=False,
         action='store_true',
         help='Activate radar mode, so that the link budget considers the '
-        'pathloss to and back from object'
-    )
-    radar_p.add_argument(
-        '--radar-alt',
-        type=float,
-        help='Altitude of the radar object'
-    )
-    radar_p.add_argument(
-        '--radar-cross-section',
-        type=float,
-        help='Radar cross section of the radar object'
-    )
+        'pathloss to and back from object')
+    radar_p.add_argument('--radar-alt',
+                         type=float,
+                         help='Altitude of the radar object')
+    radar_p.add_argument('--radar-cross-section',
+                         type=float,
+                         help='Radar cross section of the radar object')
     radar_p.add_argument(
         '--radar-bistatic',
         default=False,
         action='store_true',
         help='Bistatic radar scenario, i.e., radar transmitter and receiver '
-        'are not collocated'
-    )
+        'are not collocated')
     return parser
 
 
 def validate(parser, args):
     """Validate command-line arguments"""
-    if (args.tx_power and args.tx_dish_size is None and
-            args.tx_dish_gain is None):
+    if (args.tx_power and args.tx_dish_size is None
+            and args.tx_dish_gain is None):
         parser.error("Define either --tx-dish-size or --tx-dish-gain  "
                      "using option --tx-power")
 
@@ -212,14 +168,12 @@ def validate(parser, args):
             defined_pos_args.append(label)
     if (args.slant_range is None and len(missing_pos_args) > 0):
         parser.error("the following arguments are required: {}".format(
-            ", ".join(missing_pos_args)
-        ))
+            ", ".join(missing_pos_args)))
     elif (args.slant_range is not None and len(defined_pos_args) > 0):
         parser.error("argument{} {}: not allowed with argument "
                      "--slant-range".format(
                          "s" if len(defined_pos_args) > 1 else "",
-                         ", ".join(defined_pos_args))
-                     )
+                         ", ".join(defined_pos_args)))
 
 
 def analyze(args, verbose=False):
@@ -259,8 +213,9 @@ def analyze(args, verbose=False):
         else:
             tx_gain = args.tx_dish_gain
         eirp = calc.eirp(args.tx_power, tx_gain)
-        util.log_result("Tx Power", "{:.2f} kW".format(
-            util.db_to_abs(args.tx_power)/1e3))
+        util.log_result(
+            "Tx Power",
+            "{:.2f} kW".format(util.db_to_abs(args.tx_power) / 1e3))
     else:
         eirp = args.eirp
 
@@ -283,8 +238,8 @@ def analyze(args, verbose=False):
     else:
         atmospheric_loss_db = args.atmospheric_loss
 
-    util.log_result("Atmospheric loss", "{:.2f} dB".format(
-        atmospheric_loss_db))
+    util.log_result("Atmospheric loss",
+                    "{:.2f} dB".format(atmospheric_loss_db))
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
@@ -306,14 +261,13 @@ def analyze(args, verbose=False):
 
     noise_fig_db = calc.total_noise_figure(
         [lnb_noise_fig, coax_noise_fig_db, args.rx_noise_fig],
-        [args.lnb_gain, -coax_loss_db]
-    )
+        [args.lnb_gain, -coax_loss_db])
 
     # -------- System noise temperature --------
     effective_input_noise_temp = calc.noise_fig_to_noise_temp(noise_fig_db)
 
-    util.log_result("Input-noise temp", "{:.2f} K".format(
-        effective_input_noise_temp))
+    util.log_result("Input-noise temp",
+                    "{:.2f} K".format(effective_input_noise_temp))
 
     if (args.antenna_noise_temp is None):
         antenna_noise_temp = calc.antenna_noise_temp(args.atmospheric_loss)
@@ -323,8 +277,8 @@ def analyze(args, verbose=False):
     else:
         antenna_noise_temp = args.antenna_noise_temp
 
-    util.log_result("Antenna noise temp", "{:.2f} K".format(
-        antenna_noise_temp))
+    util.log_result("Antenna noise temp",
+                    "{:.2f} K".format(antenna_noise_temp))
 
     T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
                                     effective_input_noise_temp)
@@ -334,11 +288,14 @@ def analyze(args, verbose=False):
     P_rx_dbw = calc.rx_power(eirp, path_loss_db, dish_gain_db,
                              atmospheric_loss_db, args.mispointing_loss)
 
-    N_dbw = calc.noise_power(T_syst_db, args.if_bw,)
+    N_dbw = calc.noise_power(
+        T_syst_db,
+        args.if_bw,
+    )
 
     g_over_t_db = calc.g_over_t(dish_gain_db, T_syst_db)
 
-    cnr = calc.cnr(P_rx_dbw,  N_dbw)
+    cnr = calc.cnr(P_rx_dbw, N_dbw)
 
     # -------- Capacity --------
     capacity = calc.capacity(cnr, args.if_bw)
@@ -365,12 +322,11 @@ def analyze(args, verbose=False):
         },
         'power_dbw': {
             'carrier': P_rx_dbw,
-            'noise':  N_dbw
+            'noise': N_dbw
         },
         'g_over_t_db': g_over_t_db,
         'cnr_db': cnr,
         'capacity_bps': capacity
-
     }
 
     if (verbose and args.json):

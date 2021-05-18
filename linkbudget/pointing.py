@@ -13,7 +13,10 @@ import numpy as np
 from . import util
 
 
-def _look_angles_ellipsoidal(sat_long, rx_long, rx_lat, rx_height=0,
+def _look_angles_ellipsoidal(sat_long,
+                             rx_long,
+                             rx_lat,
+                             rx_height=0,
                              sat_alt=35786e3):
     """Calculate look angles (elevation, azimuth) and slant range
 
@@ -44,10 +47,10 @@ def _look_angles_ellipsoidal(sat_long, rx_long, rx_lat, rx_height=0,
     # Ellipsoid parameters from GRS80
     f_inv = 298.257222100882711  # reciprocal flattening
     f = 1 / f_inv  # flattening
-    e_sq = 2*f - f**2  # eccentricity squared
+    e_sq = 2 * f - f**2  # eccentricity squared
 
     # Earth parameters
-    R_eq = 6378.137e3   # equatorial radius in meters (see [4])
+    R_eq = 6378.137e3  # equatorial radius in meters (see [4])
     r = R_eq + sat_alt  # from the earth's center to the spacecraft
 
     # Principal radius of curvature in the prime vertical (see the the
@@ -61,7 +64,7 @@ def _look_angles_ellipsoidal(sat_long, rx_long, rx_lat, rx_height=0,
     # Rectangular coordinates of the antenna location, using Eq. 12 from [1]:
     x_p = (N + h) * cos(rx_long) * cos(rx_lat)
     y_p = (N + h) * sin(rx_long) * cos(rx_lat)
-    z_p = (N*(1 - e_sq) + h) * sin(rx_lat)
+    z_p = (N * (1 - e_sq) + h) * sin(rx_lat)
 
     # Rectangular coordinates of the satellite. See Fig. 5 in [1]:
     x_s = r * cos(sat_long)
@@ -84,11 +87,15 @@ def _look_angles_ellipsoidal(sat_long, rx_long, rx_lat, rx_height=0,
     # (geodetic) zenith.
 
     # Rotation matrix - Eq. 9b from [1]:
-    rot_mtx = np.array([
-        [-sin(rx_long), cos(rx_long), 0],
-        [-sin(rx_lat)*cos(rx_long), -sin(rx_lat)*sin(rx_long), cos(rx_lat)],
-        [cos(rx_lat)*cos(rx_long), cos(rx_lat)*sin(rx_long), sin(rx_lat)]
-    ])
+    rot_mtx = np.array(
+        [[-sin(rx_long), cos(rx_long), 0],
+         [
+             -sin(rx_lat) * cos(rx_long), -sin(rx_lat) * sin(rx_long),
+             cos(rx_lat)
+         ],
+         [cos(rx_lat) * cos(rx_long),
+          cos(rx_lat) * sin(rx_long),
+          sin(rx_lat)]])
     # Conversion using Eq. 10 [1]:
     geodetic_coor = np.dot(rot_mtx, rect_coor)
 
@@ -124,8 +131,8 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=35786e3):
     rx_lat = radians(rx_lat)
 
     # Constants
-    R = 6371e3          # mean radius of the earth in meters
-    R_eq = 6378.137e3   # equatorial radius in meters (see [4])
+    R = 6371e3  # mean radius of the earth in meters
+    R_eq = 6378.137e3  # equatorial radius in meters (see [4])
     r = R_eq + sat_alt  # from the earth's center to the spacecraft
 
     # Eq. (1) from [1]:
@@ -138,16 +145,16 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=35786e3):
 
     # Distance between the satellite and the receiver (a.k.a. slant range),
     # from Equation (2) of [1]:
-    d = r * sqrt(1 + (R/r)**2 - 2*(R/r)*cos_gamma)
+    d = r * sqrt(1 + (R / r)**2 - 2 * (R / r) * cos_gamma)
 
     # Zenith distance, Equation (4) from [1]:
-    z = asin((r/d)*sin(gamma))
+    z = asin((r / d) * sin(gamma))
 
     # Elevation:
     v = 90 - degrees(z)
 
     # Angle of Equation (6) from [1]:
-    beta = degrees(acos(tan(rx_lat)/tan(gamma)))
+    beta = degrees(acos(tan(rx_lat) / tan(gamma)))
 
     # Azimuth:
     if (rx_lat > 0):
@@ -170,7 +177,10 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=35786e3):
     return v, alpha, d
 
 
-def look_angles(sat_long, rx_long, rx_lat, sat_alt=35786e3,
+def look_angles(sat_long,
+                rx_long,
+                rx_lat,
+                sat_alt=35786e3,
                 implementation='ellipsoidal'):
     """Calculate look angles (elevation, azimuth) and slant range
 
@@ -194,14 +204,18 @@ def look_angles(sat_long, rx_long, rx_lat, sat_alt=35786e3,
 
     """
     if (implementation == 'ellipsoidal'):
-        elev, azt, d = _look_angles_ellipsoidal(sat_long, rx_long, rx_lat,
+        elev, azt, d = _look_angles_ellipsoidal(sat_long,
+                                                rx_long,
+                                                rx_lat,
                                                 sat_alt=sat_alt)
     else:
-        elev, azt, d = _look_angles_spherical(sat_long, rx_long, rx_lat,
+        elev, azt, d = _look_angles_spherical(sat_long,
+                                              rx_long,
+                                              rx_lat,
                                               sat_alt=sat_alt)
 
     util.log_result("Elevation", "{:.2f} degrees".format(elev))
     util.log_result("Azimuth", "{:.2f} degrees".format(azt))
-    util.log_result("Distance", "{:.2f} km".format(d/1e3))
+    util.log_result("Distance", "{:.2f} km".format(d / 1e3))
 
     return elev, azt, d
