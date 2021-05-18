@@ -7,10 +7,10 @@ References:
  [2] https://en.wikipedia.org/wiki/Earth_radius.
 
 """
-import logging
 from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
     radians
 import numpy as np
+from . import util
 
 
 def _look_angles_ellipsoidal(sat_long, rx_long, rx_lat, rx_height=0,
@@ -200,8 +200,8 @@ def look_angles(sat_long, rx_long, rx_lat, sat_alt=35786e3,
         elev, azt, d = _look_angles_spherical(sat_long, rx_long, rx_lat,
                                               sat_alt=sat_alt)
 
-    logging.info("Elevation:          {:6.2f} degrees".format(elev))
-    logging.info("Azimuth:            {:6.2f} degrees".format(azt))
-    logging.info("Distance:           {:8.2f} km".format(d/1e3))
+    util.log_result("Elevation", "{:.2f} degrees".format(elev))
+    util.log_result("Azimuth", "{:.2f} degrees".format(azt))
+    util.log_result("Distance", "{:.2f} km".format(d/1e3))
 
     return elev, azt, d

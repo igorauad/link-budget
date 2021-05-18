@@ -234,7 +234,9 @@ def analyze(args, verbose=False):
 
     """
     if (verbose and not args.json):
-        logging.basicConfig(level=logging.INFO)
+        logging_fmt = "%(message)s"
+        logging.basicConfig(level=logging.INFO, format=logging_fmt)
+        util.log_header()
 
     # -------- Look angles --------
     if (args.slant_range is None):
@@ -253,16 +255,16 @@ def analyze(args, verbose=False):
         if args.tx_dish_gain is None:
             tx_gain = calc.dish_gain(args.tx_dish_size, args.freq,
                                      args.tx_dish_efficiency)
-            logging.info("Tx dish gain:       {:6.2f} dB".format(tx_gain))
+            util.log_result("Tx dish gain", "{:.2f} dB".format(tx_gain))
         else:
             tx_gain = args.tx_dish_gain
         eirp = calc.eirp(args.tx_power, tx_gain)
-        logging.info("Tx Power:           {:6.2f} kW".format(
+        util.log_result("Tx Power", "{:.2f} kW".format(
             util.db_to_abs(args.tx_power)/1e3))
     else:
         eirp = args.eirp
 
-    logging.info("EIRP:               {:6.2f} dBW".format(eirp))
+    util.log_result("EIRP", "{:.2f} dBW".format(eirp))
 
     # -------- Path loss --------
     path_loss_db = calc.path_loss(slant_range, args.freq, args.radar,
@@ -281,13 +283,14 @@ def analyze(args, verbose=False):
     else:
         atmospheric_loss_db = args.atmospheric_loss
 
-    logging.info("Atmospheric loss:   {:6.2f} dB".format(atmospheric_loss_db))
+    util.log_result("Atmospheric loss", "{:.2f} dB".format(
+        atmospheric_loss_db))
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
         dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq,
                                       args.rx_dish_efficiency)
-        logging.info("Rx dish gain:       {:6.2f} dB".format(dish_gain_db))
+        util.log_result("Rx dish gain", "{:.2f} dB".format(dish_gain_db))
     else:
         dish_gain_db = args.rx_dish_gain
 
@@ -299,7 +302,7 @@ def analyze(args, verbose=False):
     else:
         lnb_noise_fig = args.lnb_noise_fig
 
-    logging.info("LNB noise figure:   {:6.2f} dB".format(lnb_noise_fig))
+    util.log_result("LNB noise figure", "{:.2f} dB".format(lnb_noise_fig))
 
     noise_fig_db = calc.total_noise_figure(
         [lnb_noise_fig, coax_noise_fig_db, args.rx_noise_fig],
@@ -309,7 +312,7 @@ def analyze(args, verbose=False):
     # -------- System noise temperature --------
     effective_input_noise_temp = calc.noise_fig_to_noise_temp(noise_fig_db)
 
-    logging.info("Input-noise temp:   {:6.2f} K".format(
+    util.log_result("Input-noise temp", "{:.2f} K".format(
         effective_input_noise_temp))
 
     if (args.antenna_noise_temp is None):
@@ -320,7 +323,8 @@ def analyze(args, verbose=False):
     else:
         antenna_noise_temp = args.antenna_noise_temp
 
-    logging.info("Antenna noise temp: {:6.2f} K".format(antenna_noise_temp))
+    util.log_result("Antenna noise temp", "{:.2f} K".format(
+        antenna_noise_temp))
 
     T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
                                     effective_input_noise_temp)

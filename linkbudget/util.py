@@ -1,4 +1,5 @@
 from math import log10
+import logging
 
 
 def abs_to_db(val):
@@ -31,3 +32,15 @@ def format_rate(rate):
             break
 
     return "{:.2f} {}".format(value, unit)
+
+
+def log_header():
+    """Log header to form a table with result logs"""
+    logging.info("---------------------|--------------------")
+    logging.info("Parameter            | Value")
+    logging.info("---------------------|--------------------")
+
+
+def log_result(parameter, value):
+    """Log parameter-value result"""
+    logging.info("{:20s} | {:20s}".format(parameter, value))

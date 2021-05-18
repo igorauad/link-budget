@@ -9,7 +9,6 @@ References:
  [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 
 """
-import logging
 from math import log10, pi, log2
 from . import util
 
@@ -92,7 +91,7 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
     else:
         Lfs_db = Lfs_one_way_db
 
-    logging.info("Path loss:          {:6.2f} dB".format(Lfs_db))
+    util.log_result("Path loss", "{:.2f} dB".format(Lfs_db))
     return Lfs_db
 
 
@@ -180,8 +179,8 @@ def coax_loss_nf(length_ft, Tl=T0):
     noise_factor = 1 + (Tl/T0)*(loss - 1)
     noise_fig = 10*log10(noise_factor)
 
-    logging.info("Coax loss:          {:6.2f} dB".format(loss_db))
-    logging.info("Coax noise figure:  {:6.2f} dB".format(noise_fig))
+    util.log_result("Coax loss", "{:.2f} dB".format(loss_db))
+    util.log_result("Coax noise figure", "{:.2f} dB".format(noise_fig))
 
     return loss_db, noise_fig
 
@@ -219,7 +218,7 @@ def total_noise_figure(nfs, gains):
         F += (nf_abs - 1) / G_prod
 
     F_db = 10*log10(F)
-    logging.info("Rx noise figure:    {:6.2f} dB".format(F_db))
+    util.log_result("Rx noise figure", "{:.2f} dB".format(F_db))
     return F_db
 
 
@@ -305,7 +304,7 @@ def rx_sys_noise_temp(Tar, Te):
 
     # Equation 8-41 from [1], or 4.39 from [2]:
     Tsyst = Tar + Te
-    logging.info("System noise temp:  {:6.2f} K".format(Tsyst))
+    util.log_result("System noise temp", "{:.2f} K".format(Tsyst))
     return Tsyst
 
 
@@ -329,7 +328,7 @@ def g_over_t(rx_ant_gain_db, T_sys_db):
 
     """
     g_over_t_db = rx_ant_gain_db - T_sys_db
-    logging.info("(G/T):              {:6.2f} dB/K".format(g_over_t_db))
+    util.log_result("(G/T)", "{:.2f} dB/K".format(g_over_t_db))
     return g_over_t_db
 
 
@@ -351,7 +350,7 @@ def rx_power(eirp_db, path_loss_db, rx_ant_gain_db, atm_loss_db=0,
     P_rx_dbw = eirp_db - path_loss_db - atm_loss_db + rx_ant_gain_db \
         - mispointing_db
 
-    logging.info("Rx Power:           {:6.2f} dBm".format(
+    util.log_result("Rx Power", "{:.2f} dBm".format(
         util.dbw_to_dbm(P_rx_dbw)))
 
     return P_rx_dbw
@@ -378,7 +377,7 @@ def noise_power(T_sys_db, bw):
 
     # Noise power:
     N_dbw = k_db + T_sys_db + bw_db
-    logging.info("Noise Power:        {:6.2f} dBm".format(
+    util.log_result("Noise Power", "{:.2f} dBm".format(
         util.dbw_to_dbm(N_dbw)))
 
     return N_dbw
@@ -396,7 +395,7 @@ def cnr(P_rx_dbw, N_dbw):
 
     """
     cnr_db = P_rx_dbw - N_dbw
-    logging.info("(C/N):              {:6.2f} dB".format(cnr_db))
+    util.log_result("(C/N)", "{:.2f} dB".format(cnr_db))
 
     return cnr_db
 
@@ -414,5 +413,5 @@ def capacity(snr_db, bw):
     """
     snr = util.db_to_abs(snr_db)
     c = bw * log2(1 + snr)
-    logging.info("Capacity:           {}".format(util.format_rate(c)))
+    util.log_result("Capacity", util.format_rate(c))
     return c
