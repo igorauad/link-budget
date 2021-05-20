@@ -170,7 +170,7 @@ def coax_loss_nf(length_ft, Tl=T0):
     """
     loss_db_per_ft = 8 / 100
     loss_db = length_ft * loss_db_per_ft
-    loss = util.db_to_abs(loss_db)
+    loss = util.db_to_lin(loss_db)
 
     # The noise figure (dB) of a coaxial line is equal to the loss in dB if the
     # physical temperature of the line is equal to T0=290 K. See Equation 8.32a
@@ -210,11 +210,11 @@ def total_noise_figure(nfs, gains):
         return nfs[0]
 
     # Implement Equation 8-34 from [1]:
-    F = util.db_to_abs(nfs[0])
+    F = util.db_to_lin(nfs[0])
     G_prod = 1
     for i, nf in enumerate(nfs[1:]):
-        nf_abs = util.db_to_abs(nf)
-        G_prod *= util.db_to_abs(gains[i])
+        nf_abs = util.db_to_lin(nf)
+        G_prod *= util.db_to_lin(gains[i])
         F += (nf_abs - 1) / G_prod
 
     F_db = 10 * log10(F)
@@ -236,7 +236,7 @@ def noise_fig_to_noise_temp(nf):
         Noise temperature in K.
 
     """
-    nf_abs = util.db_to_abs(nf)
+    nf_abs = util.db_to_lin(nf)
 
     # Using Equation 8-30b in [1]:
     Te = T0 * (nf_abs - 1)
@@ -357,8 +357,8 @@ def rx_flux_density(eirp_db, distance, atm_loss_db=0):
 
     """
     Pt = eirp_db - atm_loss_db  # Tx power minus atmospheric losses
-    flux = util.db_to_abs(Pt) / (4 * pi * distance**2)  # in W / m^2
-    flux_dbw_m2 = util.abs_to_db(flux)
+    flux = util.db_to_lin(Pt) / (4 * pi * distance**2)  # in W / m^2
+    flux_dbw_m2 = util.lin_to_db(flux)
     util.log_result("Rx flux density", "{:.2f} dBW/m2".format(flux_dbw_m2))
     return flux_dbw_m2
 
@@ -443,7 +443,7 @@ def capacity(snr_db, bw):
         Capacity in bits per second (bps).
 
     """
-    snr = util.db_to_abs(snr_db)
+    snr = util.db_to_lin(snr_db)
     c = bw * log2(1 + snr)
     util.log_result("Capacity", util.format_rate(c))
     return c

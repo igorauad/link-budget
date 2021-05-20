@@ -117,5 +117,5 @@ class Antenna:
 
         """
         wavelength = util.wavelength(freq)
-        gain = util.db_to_abs(gain_db)
+        gain = util.db_to_lin(gain_db)
         return gain * (wavelength**2) / (4 * pi)

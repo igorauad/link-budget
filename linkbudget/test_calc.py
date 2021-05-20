@@ -93,7 +93,7 @@ class TestBudgetCalc(unittest.TestCase):
         self.assertAlmostEqual(F_dbw_m2, -136, places=1)
 
         # Corresponding Rx power
-        Ae_db = util.abs_to_db(Ae)  # effective aperture in dBm^2
+        Ae_db = util.lin_to_db(Ae)  # effective aperture in dBm^2
         Pr_dbw = F_dbw_m2 + Ae_db
         self.assertAlmostEqual(Pr_dbw, -126, places=1)
 
@@ -102,7 +102,7 @@ class TestBudgetCalc(unittest.TestCase):
         # "link equation"). Consider Example 4.2 from [3].
         freq = 11e9
         wavelength = util.wavelength(freq)
-        rx_gain = util.abs_to_db(4 * pi * Ae / wavelength**2)
+        rx_gain = util.lin_to_db(4 * pi * Ae / wavelength**2)
         path_loss = calc.path_loss(d=distance, freq=freq)
         Pr_dbw_2 = calc.rx_power(eirp_dbw, path_loss, rx_gain)
         self.assertAlmostEqual(Pr_dbw, Pr_dbw_2)
@@ -162,7 +162,7 @@ class TestBudgetCalc(unittest.TestCase):
     def test_rx_sys_noise_temp(self):
         # Study aid example SA8-1 from [1]:
         Tsys = calc.rx_sys_noise_temp(Tar=20, Te=43.18)
-        Tsys_dbk = util.abs_to_db(Tsys)
+        Tsys_dbk = util.lin_to_db(Tsys)
         self.assertAlmostEqual(Tsys_dbk, 18.01, places=2)
 
     def test_cnr(self):

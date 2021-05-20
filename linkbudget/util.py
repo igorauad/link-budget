@@ -4,11 +4,13 @@ import logging
 from .constants import SPEED_OF_LIGHT
 
 
-def abs_to_db(val):
+def lin_to_db(val):
+    """Linear value to decibels"""
     return 10 * log10(val)
 
 
-def db_to_abs(val_db):
+def db_to_lin(val_db):
+    """Decibels to linear value"""
     return 10**(val_db / 10)
 
 

@@ -220,7 +220,7 @@ def analyze(args, verbose=False):
         eirp_dbw = calc.eirp(args.tx_power, tx_dish.gain_db)
         util.log_result(
             "Tx Power",
-            "{:.2f} kW".format(util.db_to_abs(args.tx_power) / 1e3))
+            "{:.2f} kW".format(util.db_to_lin(args.tx_power) / 1e3))
     else:
         eirp_dbw = args.eirp
 
@@ -307,7 +307,7 @@ def analyze(args, verbose=False):
 
     T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
                                     effective_input_noise_temp)
-    T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
+    T_syst_db = util.lin_to_db(T_syst)  # in dBK (for T_syst in K)
 
     # -------- Received Power and Flux Density --------
     if (args.radar):
