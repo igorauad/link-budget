@@ -81,15 +81,22 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
 
             Lfs_tx_db = Lfs_one_way_db
             Lfs_rx_db = 20 * log10(4 * pi * d_rx / wavelength)
+            util.log_result("Uplink path loss", "{:.2f} dB".format(Lfs_tx_db))
+            util.log_result("Downlink path loss",
+                            "{:.2f} dB".format(Lfs_rx_db))
             # Bistatic radar transmission loss in dB, equation 3.24 in [2]:
             Lfs_db = Lfs_tx_db + Lfs_rx_db - G_obj_db
         else:
+            util.log_result("One-way path loss",
+                            "{:.2f} dB".format(Lfs_one_way_db))
             # Monostatic radar transmission loss in dB, equation 3.26 in [2]:
             Lfs_db = 2 * Lfs_one_way_db - G_obj_db
+
+        util.log_result("Radar object gain", "{:.2f} dB".format(G_obj_db))
+        util.log_result("Total path loss", "{:.2f} dB".format(Lfs_db))
     else:
         Lfs_db = Lfs_one_way_db
-
-    util.log_result("Path loss", "{:.2f} dB".format(Lfs_db))
+        util.log_result("Path loss", "{:.2f} dB".format(Lfs_db))
     return Lfs_db
 
 

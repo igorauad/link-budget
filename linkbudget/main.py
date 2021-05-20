@@ -236,15 +236,16 @@ def analyze(args, verbose=False):
     # When defined, the atmospheric loss defines the antenna noise temperature
     # on reception. It also adds to the free-space path loss. On radar systems,
     # assume the atmospheric loss is experienced twice.
-    if (args.atmospheric_loss is None):
-        atmospheric_loss_db = 0
-    elif (args.radar):
-        atmospheric_loss_db = 2 * args.atmospheric_loss
+    atmospheric_loss_db = args.atmospheric_loss or 0
+    if (args.radar):
+        util.log_result("One-way atmospheric loss",
+                        "{:.2f} dB".format(atmospheric_loss_db))
+        atmospheric_loss_db = 2 * atmospheric_loss_db
+        util.log_result("Total atmospheric loss",
+                        "{:.2f} dB".format(atmospheric_loss_db))
     else:
-        atmospheric_loss_db = args.atmospheric_loss
-
-    util.log_result("Atmospheric loss",
-                    "{:.2f} dB".format(atmospheric_loss_db))
+        util.log_result("Atmospheric loss",
+                        "{:.2f} dB".format(atmospheric_loss_db))
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
