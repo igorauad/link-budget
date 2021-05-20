@@ -18,6 +18,10 @@ def dbw_to_dbm(val_db):
     return val_db + 30
 
 
+def dbm_to_dbw(val_db):
+    return val_db - 30
+
+
 def wavelength(freq):
     """Compute the radio wavelength for a given frequency"""
     return SPEED_OF_LIGHT / freq

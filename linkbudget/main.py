@@ -322,14 +322,20 @@ def analyze(args, verbose=False):
     P_rx_dbw = calc.rx_power(eirp_dbw, path_loss_db, rx_dish.gain_db,
                              atmospheric_loss_db, args.mispointing_loss)
 
-    # -------- Noise Power, G/T, and CNR --------
+    # -------- Noise Power --------
     N_dbw = calc.noise_power(
         T_syst_db,
         args.if_bw,
     )
 
-    g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
+    # -------- Signal and Noise Power Spectral Densities --------
+    sig_psd_dbw_hz = calc.spectral_density(P_rx_dbw,
+                                           args.if_bw,
+                                           label="Rx signal")
+    noise_psd_dbw_hz = calc.spectral_density(N_dbw, args.if_bw, label="Noise")
 
+    # -------- G/T and CNR --------
+    g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
     cnr = calc.cnr(P_rx_dbw, N_dbw)
 
     # -------- Capacity --------
@@ -358,6 +364,10 @@ def analyze(args, verbose=False):
         'power_dbw': {
             'carrier': P_rx_dbw,
             'noise': N_dbw
+        },
+        'psd_dbw_hz': {
+            'carrier': sig_psd_dbw_hz,
+            'noise': noise_psd_dbw_hz
         },
         'rx_flux_dbw_m2': rx_flux_dbw_m2,
         'g_over_t_db': g_over_t_db,

@@ -165,6 +165,17 @@ class TestBudgetCalc(unittest.TestCase):
         Tsys_dbk = util.lin_to_db(Tsys)
         self.assertAlmostEqual(Tsys_dbk, 18.01, places=2)
 
+    def test_spectral_density(self):
+        # Double-sided power spectral density of the white noise produced by a
+        # thermal noise source at 290 K:
+        N0_over_2_dbm_hz = -174  # dBm/Hz
+        N0_over_2_dbw_hz = util.dbm_to_dbw(N0_over_2_dbm_hz)  # dBW/Hz
+        N0_over_2_w_hz = util.db_to_lin(N0_over_2_dbw_hz)  # Watts/Hz
+        bw = 1e6  # Hz
+        N = N0_over_2_w_hz * bw  # Watts
+        N_dbw = util.lin_to_db(N)  # dBW
+        self.assertEqual(N0_over_2_dbw_hz, calc.spectral_density(N_dbw, bw))
+
     def test_cnr(self):
         # Study aid example SA8-1 from [1]:
         C = calc.rx_power(eirp_db=52,

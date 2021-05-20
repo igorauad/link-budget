@@ -328,7 +328,7 @@ def g_over_t(rx_ant_gain_db, T_sys_db):
 
     """
     g_over_t_db = rx_ant_gain_db - T_sys_db
-    util.log_result("(G/T)", "{:.2f} dB/K".format(g_over_t_db))
+    util.log_result("G/T", "{:.2f} dB/K".format(g_over_t_db))
     return g_over_t_db
 
 
@@ -415,6 +415,29 @@ def noise_power(T_sys_db, bw):
     return N_dbw
 
 
+def spectral_density(power_dbw, bw, label=""):
+    """Compute the power spectral density (PSD) of a given signal
+
+    Assume the signal has a constant power spectral density over the given
+    bandwidth. Equivalently, assume the signal behaves as white noise, i.e.,
+    with uncorrelated zero-mean samples in time.
+
+    Args:
+        power_dbw : Signal power in dBW.
+        bw        : Bandwidth in Hz.
+        label     : Optional label used for logging.
+
+    Returns:
+        PSD in dBW/Hz.
+
+    """
+    bw_db = util.lin_to_db(bw)
+    psd_dbw_hz = power_dbw - bw_db
+    util.log_result("{} PSD".format(label),
+                    "{:.2f} dBm/Hz".format(util.dbw_to_dbm(psd_dbw_hz)))
+    return psd_dbw_hz
+
+
 def cnr(P_rx_dbw, N_dbw):
     """Compute the carrier-to-noise ratio (CNR) in dB
 
@@ -427,7 +450,7 @@ def cnr(P_rx_dbw, N_dbw):
 
     """
     cnr_db = P_rx_dbw - N_dbw
-    util.log_result("(C/N)", "{:.2f} dB".format(cnr_db))
+    util.log_result("C/N", "{:.2f} dB".format(cnr_db))
 
     return cnr_db
 
