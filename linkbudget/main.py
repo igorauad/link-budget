@@ -217,14 +217,14 @@ def analyze(args, verbose=False):
                               gain=args.tx_dish_gain,
                               label="Tx dish")
 
-        eirp = calc.eirp(args.tx_power, tx_dish.gain_db)
+        eirp_dbw = calc.eirp(args.tx_power, tx_dish.gain_db)
         util.log_result(
             "Tx Power",
             "{:.2f} kW".format(util.db_to_abs(args.tx_power) / 1e3))
     else:
-        eirp = args.eirp
+        eirp_dbw = args.eirp
 
-    util.log_result("EIRP", "{:.2f} dBW".format(eirp))
+    util.log_result("EIRP", "{:.2f} dBW".format(eirp_dbw))
 
     # -------- Path loss --------
     if (args.radar):
@@ -237,6 +237,7 @@ def analyze(args, verbose=False):
     # TODO support bistatic radar. Add distance from radar object to rx
     # station.
 
+    # -------- Atmospheric loss --------
     # When defined, the atmospheric loss defines the antenna noise temperature
     # on reception. It also adds to the free-space path loss. On radar systems,
     # assume the atmospheric loss is experienced twice.
@@ -250,6 +251,17 @@ def analyze(args, verbose=False):
     else:
         util.log_result("Atmospheric loss",
                         "{:.2f} dB".format(atmospheric_loss_db))
+
+    # -------- Reflected EIRP (radar mode only) --------
+    # Compute the equivalent EIRP reflected off the radar object
+    if (args.radar):
+        one_way_path_loss_db = calc._path_loss(slant_range_m, args.freq)
+        reflected_eirp_dbw = eirp_dbw \
+            - one_way_path_loss_db \
+            - (atmospheric_loss_db/2) \
+            + radar_obj_gain_db
+        util.log_result("Reflected EIRP",
+                        "{:.2f} dBW".format(reflected_eirp_dbw))
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
@@ -298,8 +310,16 @@ def analyze(args, verbose=False):
     T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
 
     # -------- Received Power and Flux Density --------
-    rx_flux_dbw_m2 = calc.rx_flux_density(eirp, slant_range_m)
-    P_rx_dbw = calc.rx_power(eirp, path_loss_db, rx_dish.gain_db,
+    if (args.radar):
+        rx_flux_dbw_m2 = calc.rx_flux_density(reflected_eirp_dbw,
+                                              slant_range_m,
+                                              (atmospheric_loss_db / 2))
+        # TODO: use the radar-to-Rx distance instead of the Tx-to-radar slant
+        # range when running in bistatic radar mode (when supported).
+    else:
+        rx_flux_dbw_m2 = calc.rx_flux_density(eirp_dbw, slant_range_m,
+                                              atmospheric_loss_db)
+    P_rx_dbw = calc.rx_power(eirp_dbw, path_loss_db, rx_dish.gain_db,
                              atmospheric_loss_db, args.mispointing_loss)
 
     # -------- Noise Power, G/T, and CNR --------
@@ -322,7 +342,7 @@ def analyze(args, verbose=False):
             'azimuth': azimuth,
             'slant_range': slant_range_m
         },
-        'eirp_db': eirp,
+        'eirp_db': eirp_dbw,
         'path_loss_db': path_loss_db,
         'atmospheric_loss_db': atmospheric_loss_db,
         'rx_dish_gain_db': rx_dish.gain_db,

@@ -33,6 +33,21 @@ def eirp(tx_power, tx_dish_gain):
     return eirp
 
 
+def _path_loss(d, freq):
+    """One-way free-space path loss
+
+    Args:
+        d    : Distance in meters.
+        freq : Carrier frequency in Hz.
+
+    Returns:
+        Path loss in dB.
+
+    """
+    wavelength = util.wavelength(freq)
+    return 20 * log10(4 * pi * d / wavelength)
+
+
 def path_loss(d, freq, radar=False, obj_gain=None, bistatic=False, d_rx=None):
     """Calculate the free-space path loss (or transmission loss)
 
@@ -56,10 +71,8 @@ def path_loss(d, freq, radar=False, obj_gain=None, bistatic=False, d_rx=None):
         Path loss in dB.
 
     """
-    wavelength = util.wavelength(freq)
-
     # Eq. 8-11 from [1], or Eq. 3.16 from [2]:
-    Lfs_one_way_db = 20 * log10(4 * pi * d / wavelength)
+    Lfs_one_way_db = _path_loss(d, freq)
 
     if (radar):
         if (obj_gain is None):
@@ -70,7 +83,7 @@ def path_loss(d, freq, radar=False, obj_gain=None, bistatic=False, d_rx=None):
                 raise ValueError("Rx distance required in bistatic radar mode")
 
             Lfs_tx_db = Lfs_one_way_db
-            Lfs_rx_db = 20 * log10(4 * pi * d_rx / wavelength)
+            Lfs_rx_db = _path_loss(d_rx, freq)
             util.log_result("Uplink path loss", "{:.2f} dB".format(Lfs_tx_db))
             util.log_result("Downlink path loss",
                             "{:.2f} dB".format(Lfs_rx_db))
