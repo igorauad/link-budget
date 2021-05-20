@@ -2,7 +2,7 @@
 import json
 import logging
 import argparse
-from . import calc, pointing, util
+from . import calc, pointing, util, constants
 from .antenna import Antenna
 
 __version__ = "0.1.2"
@@ -196,7 +196,7 @@ def analyze(args, verbose=False):
     # -------- Look angles --------
     if (args.slant_range is None):
         # Satellite altitude
-        sat_alt = 35786e3 if not args.radar else args.radar_alt
+        sat_alt = constants.GEOSYNC_ORBIT if not args.radar else args.radar_alt
 
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(

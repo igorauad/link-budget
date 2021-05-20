@@ -11,13 +11,14 @@ from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
     radians
 import numpy as np
 from . import util
+from .constants import GEOSYNC_ORBIT
 
 
 def _look_angles_ellipsoidal(sat_long,
                              rx_long,
                              rx_lat,
                              rx_height=0,
-                             sat_alt=35786e3):
+                             sat_alt=GEOSYNC_ORBIT):
     """Calculate look angles (elevation, azimuth) and slant range
 
     Computation using the rigorous ellipsoidal approach presented in [1].
@@ -109,7 +110,7 @@ def _look_angles_ellipsoidal(sat_long,
     return elevation_degrees, azimuth_degrees, slant_range
 
 
-def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=35786e3):
+def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=GEOSYNC_ORBIT):
     """Calculate look angles (elevation, azimuth) and slant range
 
     Computation using the spherical approximation discussed in [1].
@@ -180,7 +181,7 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=35786e3):
 def look_angles(sat_long,
                 rx_long,
                 rx_lat,
-                sat_alt=35786e3,
+                sat_alt=GEOSYNC_ORBIT,
                 implementation='ellipsoidal'):
     """Calculate look angles (elevation, azimuth) and slant range
 
