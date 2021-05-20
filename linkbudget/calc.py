@@ -33,7 +33,7 @@ def eirp(tx_power, tx_dish_gain):
     return eirp
 
 
-def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
+def path_loss(d, freq, radar=False, obj_gain=None, bistatic=False, d_rx=None):
     """Calculate the free-space path loss (or transmission loss)
 
     This function supports radar mode, in which case it computes the
@@ -47,17 +47,10 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
                    the radar object.
         freq     : Carrier frequency in Hz.
         radar    : Radar mode.
-        bistatic : Bistatic radar.
-        rcs      : Radar cross section (RCS).
-        d_rx     : Bistatic radar mode only: distance between radar object and
-                   receiver that is not collocated with the transmitter.
-
-    Notes:
-
-        - The RCS definition repeated in [2] is the following: "the RCS of a
-          radar object is the hypothetical area intercepting that amount of
-          power which, when scattered isotropically, produces a power density
-          at the receiver equal to that from the actual object."
+        obj_gain : Gain of the radar object in dB.
+        bistatic : Bistatic radar mode.
+        d_rx     : Bistatic radar mode only: distance between the radar object
+                   and the Rx that is not collocated with the Tx.
 
     Returns:
         Path loss in dB.
@@ -69,11 +62,8 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
     Lfs_one_way_db = 20 * log10(4 * pi * d / wavelength)
 
     if (radar):
-        if (rcs is None):
-            raise ValueError("Radar cross section required in radar mode")
-
-        # Radar object gain in dB, equation 3.23 in [2]:
-        G_obj_db = 10 * log10(4 * pi * rcs / (wavelength**2))
+        if (obj_gain is None):
+            raise ValueError("Radar object's gain is required in radar mode")
 
         if (bistatic):
             if (d_rx is None):
@@ -85,19 +75,43 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
             util.log_result("Downlink path loss",
                             "{:.2f} dB".format(Lfs_rx_db))
             # Bistatic radar transmission loss in dB, equation 3.24 in [2]:
-            Lfs_db = Lfs_tx_db + Lfs_rx_db - G_obj_db
+            Lfs_db = Lfs_tx_db + Lfs_rx_db - obj_gain
         else:
             util.log_result("One-way path loss",
                             "{:.2f} dB".format(Lfs_one_way_db))
             # Monostatic radar transmission loss in dB, equation 3.26 in [2]:
-            Lfs_db = 2 * Lfs_one_way_db - G_obj_db
+            Lfs_db = 2 * Lfs_one_way_db - obj_gain
 
-        util.log_result("Radar object gain", "{:.2f} dB".format(G_obj_db))
         util.log_result("Total path loss", "{:.2f} dB".format(Lfs_db))
     else:
         Lfs_db = Lfs_one_way_db
         util.log_result("Path loss", "{:.2f} dB".format(Lfs_db))
     return Lfs_db
+
+
+def radar_obj_gain(freq, rcs):
+    """Compute the gain of the radar object
+
+    Args:
+        freq : Carrier frequency in Hz.
+        rcs  : Radar cross section (RCS).
+
+    Returns:
+        Gain of the radar object in dB.
+
+    Note:
+        The RCS definition repeated in [2] is the following: "the RCS of a
+        radar object is the hypothetical area intercepting that amount of power
+        which, when scattered isotropically, produces a power density at the
+        receiver equal to that from the actual object."
+
+    """
+    wavelength = util.wavelength(freq)
+
+    # Radar object gain in dB from equation 3.23 in [2]:
+    G_obj_db = 10 * log10(4 * pi * rcs / (wavelength**2))
+    util.log_result("Radar object's gain", "{:.2f} dB".format(G_obj_db))
+    return G_obj_db
 
 
 def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):

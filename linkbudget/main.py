@@ -227,9 +227,13 @@ def analyze(args, verbose=False):
     util.log_result("EIRP", "{:.2f} dBW".format(eirp))
 
     # -------- Path loss --------
+    if (args.radar):
+        radar_obj_gain_db = calc.radar_obj_gain(args.freq,
+                                                args.radar_cross_section)
+    else:
+        radar_obj_gain_db = None
     path_loss_db = calc.path_loss(slant_range_m, args.freq, args.radar,
-                                  args.radar_cross_section,
-                                  args.radar_bistatic)
+                                  radar_obj_gain_db, args.radar_bistatic)
     # TODO support bistatic radar. Add distance from radar object to rx
     # station.
 

@@ -30,43 +30,56 @@ class TestBudgetCalc(unittest.TestCase):
             places=1)
 
         # Examples based on Section 10.2 from [2]:
+        distance = 364288e3
+        freq = 1296e6
+        rcs = 0.065 * 9.49e12
 
         # One-way path loss
         self.assertAlmostEqual(
-            calc.path_loss(d=364288e3, freq=1296e6),
-            206,  # expected path loss
+            calc.path_loss(d=distance, freq=freq),
+            206,  # expected one-way path loss
             delta=0.1)
 
         # Monostatic radar path loss
-        rcs = 0.065 * 9.49e12
+        radar_obj_gain_db = calc.radar_obj_gain(freq, rcs)
         self.assertAlmostEqual(
-            calc.path_loss(d=364288e3, freq=1296e6, radar=True, rcs=rcs),
-            270,  # expected transmission loss
+            calc.path_loss(d=distance,
+                           freq=freq,
+                           radar=True,
+                           obj_gain=radar_obj_gain_db),
+            270,  # expected two-way transmission loss
             delta=0.25)
 
         # Equivalent bistatic radar path loss (assuming the object-to-Rx
         # distance is equal to the Tx-to-object distance)
         self.assertAlmostEqual(
-            calc.path_loss(d=364288e3,
-                           freq=1296e6,
+            calc.path_loss(d=distance,
+                           freq=freq,
                            radar=True,
-                           rcs=rcs,
+                           obj_gain=radar_obj_gain_db,
                            bistatic=True,
-                           d_rx=364288e3),
-            270,  # expected transmission loss
+                           d_rx=distance),
+            270,  # expected two-way transmission loss
             delta=0.25)
 
-        # The RCS must be provided in radar mode
+        # The gain of the radar object must be provided in radar mode
         with self.assertRaises(ValueError):
-            calc.path_loss(d=364288e3, freq=1296e6, radar=True)
+            calc.path_loss(d=distance, freq=freq, radar=True)
 
         # The Rx distance must be provided in bistatic radar mode
         with self.assertRaises(ValueError):
-            calc.path_loss(d=364288e3,
-                           freq=1296e6,
+            calc.path_loss(d=distance,
+                           freq=freq,
                            radar=True,
-                           rcs=rcs,
+                           obj_gain=radar_obj_gain_db,
                            bistatic=True)
+
+    def test_radar_object_gain(self):
+        # Based on the example in Section 10.2 from [2]:
+        freq = 1296e6
+        rcs = 0.065 * 9.49e12
+        Gobj = calc.radar_obj_gain(freq, rcs)
+        self.assertAlmostEqual(Gobj, 141.7, delta=0.1)
 
     def test_rx_flux_density(self):
         """Test flux density computation"""
