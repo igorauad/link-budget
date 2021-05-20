@@ -3,6 +3,7 @@ import json
 import logging
 import argparse
 from . import calc, pointing, util
+from .antenna import Antenna
 
 __version__ = "0.1.2"
 
@@ -207,12 +208,16 @@ def analyze(args, verbose=False):
     # -------- EIRP --------
     if (args.eirp is None):
         if args.tx_dish_gain is None:
-            tx_gain = calc.dish_gain(args.tx_dish_size, args.freq,
-                                     args.tx_dish_efficiency)
-            util.log_result("Tx dish gain", "{:.2f} dB".format(tx_gain))
+            tx_dish = Antenna(freq=args.freq,
+                              diameter=args.tx_dish_size,
+                              efficiency=args.tx_dish_efficiency,
+                              label="Tx dish")
         else:
-            tx_gain = args.tx_dish_gain
-        eirp = calc.eirp(args.tx_power, tx_gain)
+            tx_dish = Antenna(freq=args.freq,
+                              gain=args.tx_dish_gain,
+                              label="Tx dish")
+
+        eirp = calc.eirp(args.tx_power, tx_dish.gain_db)
         util.log_result(
             "Tx Power",
             "{:.2f} kW".format(util.db_to_abs(args.tx_power) / 1e3))
@@ -243,11 +248,14 @@ def analyze(args, verbose=False):
 
     # -------- Rx dish gain --------
     if (args.rx_dish_gain is None):
-        dish_gain_db = calc.dish_gain(args.rx_dish_size, args.freq,
-                                      args.rx_dish_efficiency)
-        util.log_result("Rx dish gain", "{:.2f} dB".format(dish_gain_db))
+        rx_dish = Antenna(freq=args.freq,
+                          diameter=args.rx_dish_size,
+                          efficiency=args.rx_dish_efficiency,
+                          label="Rx dish")
     else:
-        dish_gain_db = args.rx_dish_gain
+        rx_dish = Antenna(freq=args.freq,
+                          gain=args.rx_dish_gain,
+                          label="Rx dish")
 
     # -------- Noise figure --------
     coax_loss_db, coax_noise_fig_db = calc.coax_loss_nf(args.coax_length)
@@ -285,7 +293,7 @@ def analyze(args, verbose=False):
     T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
 
     # -------- Received Power, Noise Power, CNR, and other metrics --------
-    P_rx_dbw = calc.rx_power(eirp, path_loss_db, dish_gain_db,
+    P_rx_dbw = calc.rx_power(eirp, path_loss_db, rx_dish.gain_db,
                              atmospheric_loss_db, args.mispointing_loss)
 
     N_dbw = calc.noise_power(
@@ -293,7 +301,7 @@ def analyze(args, verbose=False):
         args.if_bw,
     )
 
-    g_over_t_db = calc.g_over_t(dish_gain_db, T_syst_db)
+    g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
 
     cnr = calc.cnr(P_rx_dbw, N_dbw)
 
@@ -310,7 +318,7 @@ def analyze(args, verbose=False):
         'eirp_db': eirp,
         'path_loss_db': path_loss_db,
         'atmospheric_loss_db': atmospheric_loss_db,
-        'rx_dish_gain_db': dish_gain_db,
+        'rx_dish_gain_db': rx_dish.gain_db,
         'noise_fig_db': {
             'lnb': lnb_noise_fig,
             'coax': coax_noise_fig_db,

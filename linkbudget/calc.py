@@ -11,9 +11,7 @@ References:
 """
 from math import log10, pi, log2
 from . import util
-
-SPEED_OF_LIGHT = 299792458  # in m/s
-T0 = 290  # standard room temperature in Kelvin
+from .constants import SPEED_OF_LIGHT, T0
 
 
 def eirp(tx_power, tx_dish_gain):
@@ -92,37 +90,6 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
 
     util.log_result("Path loss", "{:.2f} dB".format(Lfs_db))
     return Lfs_db
-
-
-def dish_gain(diameter, freq, efficiency):
-    """Calculate parabolic dish gain
-
-    The gain in linear units is given by:
-
-    Gain = 4 * 𝜋 * Ae ∕ 𝜆**2,
-
-    where Ae is effective aperture given by:
-
-    Ae = 𝜂 * A,
-
-    and A represents the antenna's physical aperture area.
-
-    Args:
-        diameter   : Diameter in m
-        freq       : Frequency of interest in Hz
-        efficiency : Aperture efficiency (typically within 0.5 to 0.75)
-
-    Returns:
-        Gain in dB
-
-    """
-    radius = diameter / 2
-    face_area = pi * (radius**2)  # assume circle
-    wavelength = SPEED_OF_LIGHT / freq
-
-    # See Table 8-4 in [1], which assumes a 56% aperture efficiency:
-    gain = efficiency * 4 * pi * face_area / (wavelength**2)
-    return 10 * log10(gain)
 
 
 def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):

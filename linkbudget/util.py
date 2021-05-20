@@ -36,11 +36,12 @@ def format_rate(rate):
 
 def log_header():
     """Log header to form a table with result logs"""
-    logging.info("---------------------|--------------------")
-    logging.info("Parameter            | Value")
-    logging.info("---------------------|--------------------")
+    w = 25  # width
+    logging.info(w * "-" + "|" + w * "-")
+    log_result("Parameter", "Value")
+    logging.info(w * "-" + "|" + w * "-")
 
 
 def log_result(parameter, value):
     """Log parameter-value result"""
-    logging.info("{:20s} | {:20s}".format(parameter, value))
+    logging.info("{:24s} | {:24s}".format(parameter, value))
