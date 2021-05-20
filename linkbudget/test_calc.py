@@ -10,6 +10,8 @@ References:
 """
 
 import unittest
+from math import pi
+
 from . import calc, util
 
 
@@ -65,6 +67,46 @@ class TestBudgetCalc(unittest.TestCase):
                            radar=True,
                            rcs=rcs,
                            bistatic=True)
+
+    def test_rx_flux_density(self):
+        """Test flux density computation"""
+        # Example 4.1 from [3]
+        distance = 4e7  # distance in meters
+        eirp_dbw = 27  # EIRP in dBW
+        Ae = 10  # effective aperture in m2
+
+        # Flux density
+        F_dbw_m2 = calc.rx_flux_density(eirp_dbw, distance)
+        self.assertAlmostEqual(F_dbw_m2, -136, places=1)
+
+        # Corresponding Rx power
+        Ae_db = util.abs_to_db(Ae)  # effective aperture in dBm^2
+        Pr_dbw = F_dbw_m2 + Ae_db
+        self.assertAlmostEqual(Pr_dbw, -126, places=1)
+
+        # This Rx power computation based on the flux density should match with
+        # the Rx power computed using the antenna gain (i.e., based on the
+        # "link equation"). Consider Example 4.2 from [3].
+        freq = 11e9
+        wavelength = util.wavelength(freq)
+        rx_gain = util.abs_to_db(4 * pi * Ae / wavelength**2)
+        path_loss = calc.path_loss(d=distance, freq=freq)
+        Pr_dbw_2 = calc.rx_power(eirp_dbw, path_loss, rx_gain)
+        self.assertAlmostEqual(Pr_dbw, Pr_dbw_2)
+
+        # Check the match between the two Rx power computations (based on flux
+        # density and based on the link equation) when a non-zero atmospheric
+        # loss is introduced in the analysis.
+        atm_loss_db = 0.5
+        F_dbw_m2 = calc.rx_flux_density(eirp_dbw,
+                                        distance,
+                                        atm_loss_db=atm_loss_db)
+        Pr_dbw = F_dbw_m2 + Ae_db
+        Pr_dbw_2 = calc.rx_power(eirp_dbw,
+                                 path_loss,
+                                 rx_gain,
+                                 atm_loss_db=atm_loss_db)
+        self.assertAlmostEqual(Pr_dbw, Pr_dbw_2)
 
     def test_antenna_noise_temp(self):
         # Example 4.9 in [3]

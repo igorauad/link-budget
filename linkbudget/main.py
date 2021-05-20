@@ -199,11 +199,11 @@ def analyze(args, verbose=False):
         sat_alt = 35786e3 if not args.radar else args.radar_alt
 
         # Look angles
-        elevation, azimuth, slant_range = pointing.look_angles(
+        elevation, azimuth, slant_range_m = pointing.look_angles(
             args.sat_long, args.rx_long, args.rx_lat, sat_alt)
     else:
         elevation = azimuth = None
-        slant_range = args.slant_range * 1e3  # km to m
+        slant_range_m = args.slant_range * 1e3  # km to m
 
     # -------- EIRP --------
     if (args.eirp is None):
@@ -227,7 +227,7 @@ def analyze(args, verbose=False):
     util.log_result("EIRP", "{:.2f} dBW".format(eirp))
 
     # -------- Path loss --------
-    path_loss_db = calc.path_loss(slant_range, args.freq, args.radar,
+    path_loss_db = calc.path_loss(slant_range_m, args.freq, args.radar,
                                   args.radar_cross_section,
                                   args.radar_bistatic)
     # TODO support bistatic radar. Add distance from radar object to rx
@@ -292,10 +292,12 @@ def analyze(args, verbose=False):
                                     effective_input_noise_temp)
     T_syst_db = util.abs_to_db(T_syst)  # in dBK (for T_syst in K)
 
-    # -------- Received Power, Noise Power, CNR, and other metrics --------
+    # -------- Received Power and Flux Density --------
+    rx_flux_dbw_m2 = calc.rx_flux_density(eirp, slant_range_m)
     P_rx_dbw = calc.rx_power(eirp, path_loss_db, rx_dish.gain_db,
                              atmospheric_loss_db, args.mispointing_loss)
 
+    # -------- Noise Power, G/T, and CNR --------
     N_dbw = calc.noise_power(
         T_syst_db,
         args.if_bw,
@@ -313,7 +315,7 @@ def analyze(args, verbose=False):
         'pointing': {
             'elevation': elevation,
             'azimuth': azimuth,
-            'slant_range': slant_range
+            'slant_range': slant_range_m
         },
         'eirp_db': eirp,
         'path_loss_db': path_loss_db,
@@ -332,6 +334,7 @@ def analyze(args, verbose=False):
             'carrier': P_rx_dbw,
             'noise': N_dbw
         },
+        'rx_flux_dbw_m2': rx_flux_dbw_m2,
         'g_over_t_db': g_over_t_db,
         'cnr_db': cnr,
         'capacity_bps': capacity

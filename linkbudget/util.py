@@ -1,6 +1,8 @@
 from math import log10
 import logging
 
+from .constants import SPEED_OF_LIGHT
+
 
 def abs_to_db(val):
     return 10 * log10(val)
@@ -12,6 +14,11 @@ def db_to_abs(val_db):
 
 def dbw_to_dbm(val_db):
     return val_db + 30
+
+
+def wavelength(freq):
+    """Compute the radio wavelength for a given frequency"""
+    return SPEED_OF_LIGHT / freq
 
 
 def format_rate(rate):

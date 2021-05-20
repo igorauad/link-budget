@@ -9,7 +9,6 @@ References:
 """
 from math import log10, pi
 from . import util
-from .constants import SPEED_OF_LIGHT
 
 
 class Antenna:
@@ -101,7 +100,7 @@ class Antenna:
             Gain in dB.
 
         """
-        wavelength = SPEED_OF_LIGHT / freq
+        wavelength = util.wavelength(freq)
         gain = effective_aperture * 4 * pi / (wavelength**2)
         return 10 * log10(gain)
 
@@ -117,6 +116,6 @@ class Antenna:
             Effective aperture area in square meters (m^2).
 
         """
-        wavelength = SPEED_OF_LIGHT / freq
+        wavelength = util.wavelength(freq)
         gain = util.db_to_abs(gain_db)
         return gain * (wavelength**2) / (4 * pi)

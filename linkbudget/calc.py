@@ -10,8 +10,9 @@ References:
 
 """
 from math import log10, pi, log2
+
 from . import util
-from .constants import SPEED_OF_LIGHT, T0
+from .constants import T0
 
 
 def eirp(tx_power, tx_dish_gain):
@@ -62,7 +63,7 @@ def path_loss(d, freq, radar=False, rcs=None, bistatic=False, d_rx=None):
         Path loss in dB.
 
     """
-    wavelength = SPEED_OF_LIGHT / freq
+    wavelength = util.wavelength(freq)
 
     # Eq. 8-11 from [1], or Eq. 3.16 from [2]:
     Lfs_one_way_db = 20 * log10(4 * pi * d / wavelength)
@@ -298,6 +299,37 @@ def g_over_t(rx_ant_gain_db, T_sys_db):
     return g_over_t_db
 
 
+def rx_flux_density(eirp_db, distance, atm_loss_db=0):
+    """Compute the received flux density in in dBW/m^2
+
+    Note the Rx flux density refers the incident power density (power per area)
+    arriving at the receiving antenna, i.e., at the antenna's input. In
+    contrast, the value computed by function "rx_power" refers to the power
+    collected by the antenna, i.e., at the antenna's output.
+
+    Args:
+        eirp_db     : EIRP in dBW.
+        distance    : Distance between the Tx and Rx in meters.
+        atm_loss_db : Total atmospheric loss in dB.
+
+    Returns:
+        Received flux density in dBW/m^2.
+
+    Note:
+        The flux density unit of dBW/m^2 should be interpreted as
+        "10*log10(W/m^2)", and not "10*log10(W) / m^2". With a flux density F
+        in dBW/m^2 and a given area A in m^2, the Rx power can be obtained by
+        "F + 10*log10(A)". Equivalently, if the area is given in dBm^2
+        (decibels greater than 1m^2), the Rx power can be obtained "F + A_db".
+
+    """
+    Pt = eirp_db - atm_loss_db  # Tx power minus atmospheric losses
+    flux = util.db_to_abs(Pt) / (4 * pi * distance**2)  # in W / m^2
+    flux_dbw_m2 = util.abs_to_db(flux)
+    util.log_result("Rx flux density", "{:.2f} dBW/m2".format(flux_dbw_m2))
+    return flux_dbw_m2
+
+
 def rx_power(eirp_db,
              path_loss_db,
              rx_ant_gain_db,
@@ -309,7 +341,7 @@ def rx_power(eirp_db,
         eirp_db        : EIRP in dBW.
         path_loss_db   : Free-space path loss in dB.
         rx_ant_gain_db : Receiver antenna gain in dB.
-        atm_loss_db    : Total atmosphere loss in dB.
+        atm_loss_db    : Total atmospheric loss in dB.
         mispointing_db : Antenna mispointing loss in dB.
 
     Returns:
