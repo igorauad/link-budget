@@ -129,6 +129,12 @@ class TestBudgetCalc(unittest.TestCase):
         total_nf = calc.total_noise_figure(nfs, gains)
         self.assertAlmostEqual(total_nf, 0.63, places=2)
 
+        # If a single noise figure is provided, make sure the total noise
+        # figure is equivalent to it.
+        nf = 0.6
+        total_nf = calc.total_noise_figure(nfs=[nf], gains=[])
+        self.assertEqual(total_nf, nf)
+
     def test_noise_fig_temp_conv(self):
         # Table 4.4 from [3]:
         noise_temp = [0, 20, 40]

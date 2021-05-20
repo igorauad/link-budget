@@ -170,7 +170,6 @@ def total_noise_figure(nfs, gains):
     """
 
     assert (len(nfs) > 0)
-    assert (len(gains) > 0)
     assert (len(gains) == len(nfs) - 1)
 
     if (len(nfs) == 1):
