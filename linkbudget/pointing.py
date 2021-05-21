@@ -3,8 +3,8 @@ Satellite look angle computations
 
 References:
 
- [1] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf.
- [2] https://en.wikipedia.org/wiki/Earth_radius.
+- [1] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf.
+- [2] https://en.wikipedia.org/wiki/Earth_radius.
 
 """
 from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
@@ -190,15 +190,19 @@ def look_angles(sat_long,
     (latitude 0) and that the Rx station is at sea level.
 
     Args:
-        sat_long   : Subsatellite point's geodetic longitude
-        rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Geodetic latitute of the receiver station in degrees
-        sat_alt    : Satellite/reflector altitude in meters (default to
-                     the geosynchronous altitude)
+        sat_long       : Subsatellite point's geodetic longitude.
+        rx_long        : Longitude of the receiver station in degrees.
+        rx_lat         : Geodetic latitute of the receiver station in degrees.
+        sat_alt        : Satellite/reflector altitude in meters (default to
+                         the geosynchronous altitude).
+        implementation : "ellipsoidal" to use the rigorous ellipsoidal
+                         computation approach presented in [1] or "spherical"
+                         to use the spherical approximation discussed in the
+                         same document.
 
     Note:
-        - Positive longitudes are east, whereas negative longitudes are to the
-          west.
+        Positive longitudes are east, whereas negative longitudes are to the
+        west.
 
     Returns:
         Tuple with elevation (degrees), azimuth (degrees) and slant range (m).

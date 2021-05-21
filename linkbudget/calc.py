@@ -1,12 +1,11 @@
 """
-Link Budget and other RF Calculations
+Collection of link budget and other RF calculations.
 
 References:
 
- [1] Couch, Leon W.. Digital & Analog Communication Systems.
- [2] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System
-     (Master's thesis).
- [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
+- [1] Couch, Leon W.. Digital & Analog Communication Systems.
+- [2] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System.
+- [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 
 """
 from math import log10, pi, log2
@@ -218,10 +217,9 @@ def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
                        of incident sky noise energy output by the antenna.
 
     Note:
-        - In [3], a medium temperature of 270 K is considered when computing
-          the sky noise temperature for rain. In contrast, a temperature of 290
-          K is considered when analyzing clear sky. The rationale is to be
-          confirmed.
+        In [3], a medium temperature of 270 K is considered when computing the
+        sky noise temperature for rain. In contrast, a temperature of 290 K is
+        considered when analyzing clear sky. The rationale is to be confirmed.
 
     """
 
@@ -348,11 +346,13 @@ def rx_sys_noise_temp(Tar, Te):
     captured by the antenna due to the received cosmic noise and Earth
     blackbody radiation. The simplified model is as follows:
 
-    Rx Antenna (Tar) -----> Sum ----> Noise-free Gain Stage ---> Detector
-                             ^
-                             |
-                             |
-                      Receiver Noise (Te)
+    .. code-block::
+
+         Rx Antenna (Tar) -----> Sum ----> Noise-free Gain Stage ---> Detector
+                                  ^
+                                  |
+                                  |
+                           Receiver Noise (Te)
 
     Note that this is peculiar because the antenna is not treated as another
     cascaded device within the receiver. Instead, the antenna adds to the
@@ -426,11 +426,14 @@ def rx_flux_density(eirp_db, distance, atm_loss_db=0):
         Received flux density in dBW/m^2.
 
     Note:
-        The flux density unit of dBW/m^2 should be interpreted as
-        "10*log10(W/m^2)", and not "10*log10(W) / m^2". With a flux density F
-        in dBW/m^2 and a given area A in m^2, the Rx power can be obtained by
-        "F + 10*log10(A)". Equivalently, if the area is given in dBm^2
-        (decibels greater than 1m^2), the Rx power can be obtained "F + A_db".
+
+        The flux density unit of :math:`\\text{dBW}/m^2` should be interpreted
+        as :math:`10\\log10(\\frac{W}{m^2})`, and not
+        :math:`\\frac{10\\log10(W)}{m^2}`. With a flux density F in
+        :math:`\\text{dBW}/m^2` and a given area A in :math:`m^2`, the Rx power
+        can be obtained by :math:`F + 10\\log10(A)`. Equivalently, if the area
+        is given as :math:`A_{db}` in :math:`\\text{dBm}^2` (decibels greater
+        than 1 square meter), the Rx power can be obtained :math:`F + A_{db}`.
 
     """
     Pt = eirp_db - atm_loss_db  # Tx power minus atmospheric losses

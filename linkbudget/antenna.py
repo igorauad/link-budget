@@ -3,8 +3,8 @@ Antenna Calculations
 
 References:
 
- [1] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
- [2] Couch, Leon W.. Digital & Analog Communication Systems.
+- [1] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
+- [2] Couch, Leon W.. Digital & Analog Communication Systems.
 
 """
 from math import log10, pi
@@ -12,30 +12,33 @@ from . import util
 
 
 class Antenna:
-    """Parabolic antenna"""
+    """Parabolic antenna
+
+    Args:
+        freq       : Operating frequency in Hz.
+        gain       : Antenna gain in dB.
+        diameter   : Diameter in m.
+        efficiency : Aperture efficiency.
+        label : Label used for logs.
+
+    Note:
+        According to [1], the aperture efficiency is typically in the range
+        0.5–0.75 for parabolodial reflector antennas, lower for small antennas
+        and higher for large Cassegrain and Gregorian antennas. For instance,
+        Table 8-4 in [2] assumes an aperture efficiency of 0.56.
+
+    Attributes:
+        effective_aperture : Effective aperture area.
+        gain_db : Antenna gain in dBi.
+
+    """
     def __init__(self,
                  freq,
                  gain=None,
                  diameter=None,
                  efficiency=None,
                  label="Dish"):
-        """Construct the antenna object
-
-        Args:
-            freq       : Operating frequency in Hz.
-            gain       : Antenna gain in dB.
-            diameter   : Diameter in m.
-            efficiency : Aperture efficiency.
-            label : Label used for logs.
-
-        Note:
-            According to [1], the aperture efficiency is typically in the range
-            0.5–0.75 for parabolodial reflector antennas, lower for small
-            antennas and higher for large Cassegrain and Gregorian
-            antennas. For instance, Table 8-4 in [2] assumes an aperture
-            efficiency of 0.56.
-
-        """
+        """Construct the antenna object"""
         if (freq is None):
             raise ValueError("Operating frequency is required")
 
@@ -70,14 +73,18 @@ class Antenna:
 
         The effective aperture area is given by:
 
-        Ae = 𝜂 * A,
+        .. math::
+
+          Ae = \\eta A,
 
         where A represents the antenna's physical aperture area.
 
         If the aperture is circular with a diameter D in meters (or radius r),
         the physical aperture area is given by:
 
-        A = 𝜋 * r^2 = 𝜋 * D^2∕4 square meters.
+        .. math::
+
+          A = 𝜋 r^2 = \\frac{𝜋 D^2}{4}.
 
         Returns:
             Effective aperture area in square meters (m^2).
@@ -92,7 +99,9 @@ class Antenna:
 
         The gain in linear units is given by:
 
-        Gain = 4 * 𝜋 * Ae ∕ 𝜆**2,
+        .. math::
+
+          G = \\frac{4𝜋Ae}{𝜆^2},
 
         where Ae is the effective aperture and 𝜆 is the wavelength.
 
@@ -110,7 +119,9 @@ class Antenna:
         The effective aperture area can be inferred from the gain and
         wavelength, as follows:
 
-        Ae = Gain * 𝜆**2 / 4 * 𝜋.
+        .. math::
+
+          Ae = \\frac{G 𝜆^2}{4𝜋}.
 
         Returns:
             Effective aperture area in square meters (m^2).
