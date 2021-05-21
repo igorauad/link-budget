@@ -7,8 +7,11 @@ References:
  [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 
 """
-import unittest
 import copy
+import io
+import json
+import unittest
+import unittest.mock
 from itertools import combinations
 from . import main
 
@@ -223,3 +226,27 @@ class TestBudgetAnalysis(unittest.TestCase):
                         test_args.extend(pos_arg_pair)
                     args = parser.parse_args(test_args)
                     main.validate(parser, args)
+
+    @unittest.mock.patch('sys.stdout', new_callable=io.StringIO)
+    def test_json_verbose_output(self, mock_stdout):
+        """Test the output when the analyzer runs in verbose and --json mode"""
+        parser = main.get_parser()
+        args = parser.parse_args([
+            '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
+            '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
+            '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
+            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
+            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71',
+            '--json'
+        ])
+        # Run the analyzer in verbose mode, in which case it should print the
+        # JSON results to stdout in addition to returning them.
+        json_res = main.analyze(args, verbose=True)
+        printed_json = json.loads(mock_stdout.getvalue())
+        self.assertEqual(printed_json, json_res)
+
+    def test_main(self):
+        """Test main entrypoint"""
+        # It should run but fail on the argparser validation
+        with self.assertRaises(SystemExit):
+            main.main()
