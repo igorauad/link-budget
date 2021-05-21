@@ -166,6 +166,12 @@ class TestBudgetAnalysis(unittest.TestCase):
             args = parser.parse_args(base_args + ['--tx-power', '20'])
             main.validate(parser, args)
 
+        # Provide the carrier PEB but not the transponder BW
+        with self.assertRaises(SystemExit):
+            args = parser.parse_args(base_args +
+                                     ['--eirp', '52', '--carrier-peb', '1e6'])
+            main.validate(parser, args)
+
         # Rx dish gain given directly instead of through the dish size
         base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',

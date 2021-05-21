@@ -33,6 +33,83 @@ def eirp(tx_power, tx_dish_gain):
     return eirp
 
 
+def carrier_eirp(sat_eirp, obo, peb=None, tp_bw=None):
+    """Compute the carrier EIRP using transponder/amplifier information
+
+    Converts the saturated EIRP obtained by an amplifier or transponder into
+    the corresponding carrier EIRP, after output backoff and power allocation.
+
+    There are two main use cases for this function:
+
+    1. To compute the carrier EIRP from the transponder's saturated EIRP and
+       carrier output backoff (OBO).
+
+    2. To compute the carrier EIRP based on the transponder's saturated EIRP,
+       the transponder's OBO, the carrier's power-equivalent bandwidth (PEB),
+       and the transponder's bandwidth.
+
+    In scenario 1, we start with the transponder's EIRP in dBW obtained when
+    its amplifier operates in saturation. This metric is often given as the
+    transponder's downlink EIRP at beam peak (BP) or beam center (BC). Then,
+    assuming the transponder is shared by multiple FDMA carriers, we subtract
+    the carrier OBO to obtain the EIRP assigned to the carrier of interest. In
+    this case, note the **carrier OBO** is often a much larger value than the
+    **transponder OBO**. The carrier OBO is easily in excess of 10 dB,
+    depending on how much of the transponder it occupies. In contrast, as
+    discussed in [3], the transponder OBO is typically within the range from 1
+    to 7 dB in FDMA systems.
+
+    The OBO interpretation changes in scenario 2 when considering FDMA
+    systems. In this case, the OBO is interpreted as the **transponder OBO**,
+    not the **carrier OBO**. Hence, the first step in the computation is to
+    obtain the transponder's operating EIRP, which is given by the saturated
+    EIRP minus the transponder OBO. The second step is to allocate a fraction
+    of the available transponder EIRP to the carrier of interest. This fraction
+    is determined by the ratio between the PEB and the transponder bandwidth.
+
+    To compute scenario 1, call this function with parameter `obo` as the
+    carrier OBO, while leaving the PEB undefined. To compute scenario 2, call
+    this function with `obo` as the transponder OBO, while informing the PEB
+    and transponder bandwidth. In any case, however, the `sat_eirp` parameter
+    represents the transponder's saturated EIRP in the direction of interest.
+
+    Note that, for convenience, the saturated EIRP is **in the direction of
+    interest**, not necessarily at BP or BC. For example, it could be at beam
+    edge (BE) or any arbitrary coverage contour. Furthermore, not this function
+    takes the saturated EIRP (i.e., including the on-axis antenna gain),
+    instead of the amplifier's saturated output power. This is intentional
+    because it is often easier to find the EIRP information for a given
+    satellite contour than to find the transponder and antenna gain separately.
+
+    Lastly, note that both use cases are equivalent in TDMA systems. Since
+    there is a single carrier in TDMA, the transponder OBO is the same as the
+    carrier OBO. Furthermore, the PEB is the full transponder bandwidth in
+    TDMA, so the `peb` parameter does not need to be informed.
+
+    Args:
+        sat_eirp  : Saturated amplifier/transponder EIRP in dBW in the
+                    direction if interest.
+        obo       : Output backoff in dB.
+        peb       : Power equivalent bandwidth if the carrier shares the
+                    amplifier/transponder with other FDMA carriers.
+        tp_bw     : Transponder bandwidth used when the PEB is given.
+
+    Returns:
+        Carrier EIRP in dBW.
+
+    """
+    if (peb is None):
+        carrier_eirp = sat_eirp - obo
+    else:
+        if (tp_bw is None):
+            raise ValueError("The transponder bandwidth is required when "
+                             "computing the carrier EIRP with the PEB")
+        tp_eirp = sat_eirp - obo
+        carrier_eirp = tp_eirp + util.lin_to_db(peb / tp_bw)
+
+    return carrier_eirp
+
+
 def _path_loss(d, freq):
     """One-way free-space path loss
 

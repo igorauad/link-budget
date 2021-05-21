@@ -22,6 +22,22 @@ class TestBudgetCalc(unittest.TestCase):
         eirp_dbw = calc.eirp(tx_power_dbw, tx_dish_gain_db)
         self.assertEqual(eirp_dbw, 27)
 
+    def test_carrier_eirp(self):
+        # Example 6.2 from [3] for the case of Station A.
+        tp_sat_power = 20
+        carrier_power = calc.carrier_eirp(tp_sat_power,
+                                          obo=3,
+                                          peb=15e6,
+                                          tp_bw=30e6)
+        self.assertAlmostEqual(carrier_power, 14, places=1)
+        # NOTE the carrier_eirp function takes the saturated EIRP, while the
+        # above example considers the transponder output power only (before the
+        # antenna). Nevertheless, the calculation is equivalent.
+
+        # The transponder bandwidth must be provided for the PEB calculation:
+        with self.assertRaises(ValueError):
+            carrier_power = calc.carrier_eirp(tp_sat_power, obo=3, peb=15e6)
+
     def test_path_loss(self):
         # Example 4.2 from [3]
         self.assertAlmostEqual(

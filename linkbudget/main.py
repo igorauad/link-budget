@@ -17,10 +17,22 @@ def get_parser():
                         action='store_true',
                         help='Print results in JSON format.')
     tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
-    tx_pwr_group.add_argument('--eirp', type=float, help='EIRP in dBW.')
-    tx_pwr_group.add_argument('--tx-power',
-                              type=float,
-                              help='Power feeding the Tx antenna in dBW.')
+    tx_pwr_group.add_argument(
+        '--eirp',
+        type=float,
+        help="Carrier or transponder EIRP in dBW. If an output backoff is "
+        "defined, this EIRP corresponds to the amplifier\'s saturated "
+        "operation. Otherwise, it represents the actual operating EIRP.")
+    tx_pwr_group.add_argument(
+        '--tx-power',
+        type=float,
+        help='Power feeding the Tx antenna in dBW. If an output backoff is '
+        'defined, this parameter represents the amplifier\'s saturated '
+        'output power. Otherwise, it refers to the actual Tx power. ')
+    parser.add_argument('--obo',
+                        type=float,
+                        default=0,
+                        help="Carrier or transponder output backoff in dB.")
     tx_dish_group = parser.add_mutually_exclusive_group()
     tx_dish_group.add_argument(
         '--tx-dish-size',
@@ -99,7 +111,28 @@ def get_parser():
                         type=float,
                         default=0,
                         help='Loss in dB due to antenna mispointing')
-    pos_p = parser.add_argument_group('sat/rx positioning options')
+
+    fdma_group = parser.add_argument_group(
+        title='FDMA Carrier Power Options',
+        description="Parameters to determine the power allocated to an FDMA "
+        "carrier.")
+    fdma_group.add_argument(
+        '--carrier-peb',
+        type=float,
+        help="Power-equivalent bandwidth (PEB) in Hz assigned for the FDMA "
+        "carrier. When provided, the EIRP computed from --eirp or --tx-power "
+        "refers to the transponder, while the PEB determines the fraction of "
+        "this transponder EIRP that is allocated to the carrier. In this "
+        "case, note the output backoff must refer to the transponder too, not "
+        "the carrier. If the output backoff represents the carrier "
+        "backoff, do not inform the carrier PEB.")
+    fdma_group.add_argument(
+        '--tp-bw',
+        type=float,
+        help="Transponder bandwidth in Hz, required if the PEB is provided")
+
+    pos_p = parser.add_argument_group(
+        'Satellite and Earth Station Position Information')
     pos_p.add_argument(
         '--sat-long',
         type=float,
@@ -120,7 +153,8 @@ def get_parser():
         type=float,
         help='Slant path length in km between the Rx station and the '
         'satellite or reflector')
-    radar_p = parser.add_argument_group('radar options')
+
+    radar_p = parser.add_argument_group('Radar Options')
     radar_p.add_argument(
         '--radar',
         default=False,
@@ -176,6 +210,10 @@ def validate(parser, args):
                          "s" if len(defined_pos_args) > 1 else "",
                          ", ".join(defined_pos_args)))
 
+    if (args.carrier_peb is not None and args.tp_bw is None):
+        parser.error("Argument --tp-bw is required if option --carrier-peb "
+                     "is defined")
+
 
 def analyze(args, verbose=False):
     """Main link budget analysis
@@ -223,6 +261,15 @@ def analyze(args, verbose=False):
             "{:.2f} kW".format(util.db_to_lin(args.tx_power) / 1e3))
     else:
         eirp_dbw = args.eirp
+
+    # The EIRP computed above could refer to an entire
+    # transponder. Furthermore, it could refer to the power level in a given
+    # direction when the amplifier operates in saturation. The following
+    # function converts the EIRP computed above to the actual carrier EIRP.
+    eirp_dbw = calc.carrier_eirp(eirp_dbw,
+                                 args.obo,
+                                 peb=args.carrier_peb,
+                                 tp_bw=args.tp_bw)
 
     util.log_result("EIRP", "{:.2f} dBW".format(eirp_dbw))
 
