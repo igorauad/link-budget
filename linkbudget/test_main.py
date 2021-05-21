@@ -10,6 +10,7 @@ References:
 import copy
 import io
 import json
+import sys
 import unittest
 import unittest.mock
 from itertools import combinations
@@ -17,16 +18,20 @@ from . import main
 
 
 class TestBudgetAnalysis(unittest.TestCase):
-    def test_ku_band_example(self):
-        # Example SA8-1 from [1]:
-        parser = main.get_parser()
-        args = parser.parse_args([
+    def setUp(self):
+        # Arguments to configure Example SA8-1 from [1]:
+        self.base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
             '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
             '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
             '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
             '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
-        ])
+        ]
+
+    def test_ku_band_example(self):
+        # Example SA8-1 from [1]:
+        parser = main.get_parser()
+        args = parser.parse_args(self.base_args)
         res = main.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
         # The actual result in [1] is distinct due to various roundings.
@@ -237,22 +242,27 @@ class TestBudgetAnalysis(unittest.TestCase):
     def test_json_verbose_output(self, mock_stdout):
         """Test the output when the analyzer runs in verbose and --json mode"""
         parser = main.get_parser()
-        args = parser.parse_args([
-            '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
-            '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
-            '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
-            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
-            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71',
-            '--json'
-        ])
+        args = parser.parse_args(self.base_args + ['--json'])
         # Run the analyzer in verbose mode, in which case it should print the
         # JSON results to stdout in addition to returning them.
         json_res = main.analyze(args, verbose=True)
         printed_json = json.loads(mock_stdout.getvalue())
         self.assertEqual(printed_json, json_res)
 
-    def test_main(self):
-        """Test main entrypoint"""
-        # It should run but fail on the argparser validation
-        with self.assertRaises(SystemExit):
+    @unittest.mock.patch('sys.stdout', new_callable=io.StringIO)
+    def test_main_entrypoint(self, mock_stdout):
+        """Test the main program entrypoint"""
+
+        # Place arguments on argv
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + self.base_args + ['--json']
+
+        # Run the main entrypoint
+        try:
             main.main()
+        finally:
+            sys.argv = old_sys_argv
+
+        # Check the JSON results printed to stdout
+        printed_json = json.loads(mock_stdout.getvalue())
+        self.assertAlmostEqual(printed_json['cnr_db'], 15.95, places=2)
