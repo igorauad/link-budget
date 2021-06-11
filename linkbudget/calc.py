@@ -1,5 +1,5 @@
 """
-Collection of link budget and other RF calculations.
+A collection of link budget and other RF calculations.
 
 References:
 
@@ -274,7 +274,7 @@ def total_noise_figure(nfs, gains):
     the chain, as it is irrelevant for the overall noise figure computation.
 
     Returns:
-        The overall noise figure in dB
+        The overall noise figure in dB.
 
     """
 
@@ -472,6 +472,11 @@ def rx_power(eirp_db,
 def noise_power(T_sys_db, bw):
     """Compute the receiver noise power in dBW
 
+    According to Equation 8-40 in [1], the noise power is given by `N =
+    k*Tsyst*bw`, where k is the Boltzmann constant, Tsyst is the receiver
+    system noise temperature (in absolute units) and bw is the IF equivalent
+    bandwidth in Hz.
+
     Args:
         T_sys_db : Receiver system noise temperature in dBK.
         bw       : Nominal signal bandwidth (also known as noise bandwidth).
@@ -481,10 +486,6 @@ def noise_power(T_sys_db, bw):
 
     """
 
-    # According to Equation 8-40 in [1], the noise power is given by N =
-    # k*Tsyst*bw, where k is the Boltzmann constant, Tsyst is the receiver
-    # system noise temperature (in absolute units) and bw is the IF equivalent
-    # bandwidth in Hz.
     k_db = -228.6  # Boltzmann’s constant (of 1.38e-23) in dB
     bw_db = 10 * log10(bw)
 

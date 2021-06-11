@@ -1,7 +1,7 @@
 PKG_DIR    = linkbudget
 PKG_NAME   = link-budget
 PY_FILES   = $(shell find . -type f -name '*.py')
-VERSION    = $(shell grep "__version__ =" $(PKG_DIR)/main.py | cut -d '"' -f2)
+VERSION    = $(shell grep "__version__ =" $(PKG_DIR)/cli.py | cut -d '"' -f2)
 SDIST      = dist/$(PKG_NAME)-$(VERSION).tar.gz
 WHEEL      = dist/$(PKG_NAME)-$(VERSION)-py3-none-any.whl
 

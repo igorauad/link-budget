@@ -1,4 +1,4 @@
-"""Link budget analysis"""
+"""Link budget command-line utility"""
 import json
 import logging
 import argparse
@@ -13,10 +13,27 @@ def get_parser():
     parser = argparse.ArgumentParser(
         description="Link Budget Calculator",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--json',
-                        action='store_true',
-                        help='Print results in JSON format.')
-    tx_pwr_group = parser.add_mutually_exclusive_group(required=True)
+
+    control_p = parser.add_argument_group('Control Options')
+    control_p.add_argument('--json',
+                           action='store_true',
+                           help='Print results in JSON format.')
+
+    freq_p = parser.add_argument_group('Frequency Options')
+    freq_p.add_argument(
+        '--freq',
+        required=True,
+        type=float,
+        help='Downlink carrier frequency in Hz for satellite signals or '
+        'simply the signal frequency in Hz for radar (passively reflected) '
+        'signals.')
+    freq_p.add_argument('--if-bw',
+                        required=True,
+                        type=float,
+                        help='IF bandwidth in Hz.')
+
+    tx_feed_p = parser.add_argument_group('Tx Feed Options')
+    tx_pwr_group = tx_feed_p.add_mutually_exclusive_group(required=True)
     tx_pwr_group.add_argument(
         '--eirp',
         type=float,
@@ -29,53 +46,46 @@ def get_parser():
         help='Power feeding the Tx antenna in dBW. If an output backoff is '
         'defined, this parameter represents the amplifier\'s saturated '
         'output power. Otherwise, it refers to the actual Tx power. ')
-    parser.add_argument('--obo',
-                        type=float,
-                        default=0,
-                        help="Carrier or transponder output backoff in dB.")
-    tx_dish_group = parser.add_mutually_exclusive_group()
+    tx_feed_p.add_argument('--obo',
+                           type=float,
+                           default=0,
+                           help="Carrier or transponder output backoff in dB.")
+
+    dish_p = parser.add_argument_group('Antenna Options')
+    tx_dish_group = dish_p.add_mutually_exclusive_group()
     tx_dish_group.add_argument(
         '--tx-dish-size',
         type=float,
         help='Diameter in meters of the parabolic antenna used for '
         'transmission. Used when the power is specified through option '
-        '--tx-power')
+        '--tx-power.')
     tx_dish_group.add_argument(
         '--tx-dish-gain',
         type=float,
         help='Gain in dBi of the parabolic antenna used for transmission. '
-        'Used when the power is specified through option --tx-power')
-    parser.add_argument(
+        'Used when the power is specified through option --tx-power.')
+    dish_p.add_argument(
         '--tx-dish-efficiency',
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
         'transmission. Considered when the dish is specified by size.')
-    parser.add_argument(
-        '--freq',
-        required=True,
-        type=float,
-        help='Downlink carrier frequency in Hz for satellite signals or '
-        'simply the signal frequency in Hz for radar (passively reflected) '
-        'signals.')
-    parser.add_argument('--if-bw',
-                        required=True,
-                        type=float,
-                        help='IF bandwidth in Hz.')
-    rx_dish_group = parser.add_mutually_exclusive_group(required=True)
+    rx_dish_group = dish_p.add_mutually_exclusive_group(required=True)
     rx_dish_group.add_argument('--rx-dish-size',
                                type=float,
                                help='Parabolic antenna (dish) diameter in m.')
     rx_dish_group.add_argument('--rx-dish-gain',
                                type=float,
                                help='Parabolic antenna (dish) gain in dBi.')
-    parser.add_argument(
+    dish_p.add_argument(
         '--rx-dish-efficiency',
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
         'reception. Considered when the dish is specified by size.')
-    sky_noise_group = parser.add_mutually_exclusive_group(required=True)
+
+    noise_prop_p = parser.add_argument_group('Noise and Propagation Options')
+    sky_noise_group = noise_prop_p.add_mutually_exclusive_group(required=True)
     sky_noise_group.add_argument(
         '--antenna-noise-temp',
         type=float,
@@ -85,32 +95,34 @@ def get_parser():
         type=float,
         help='Attenuation in dB experienced through the atmosphere. It should '
         'always include the clear air attenuation, and it could also include '
-        'other effects such as rain attenuation')
-    lnb_noise_group = parser.add_mutually_exclusive_group(required=True)
+        'other effects such as rain attenuation.')
+    lnb_noise_group = noise_prop_p.add_mutually_exclusive_group(required=True)
     lnb_noise_group.add_argument('--lnb-noise-fig',
                                  type=float,
                                  help='LNB\'s noise figure in dB.')
     lnb_noise_group.add_argument('--lnb-noise-temp',
                                  type=float,
                                  help='LNB\'s noise temperature in K.')
-    parser.add_argument('--lnb-gain',
-                        required=True,
-                        type=float,
-                        help='LNB\'s gain.')
-    parser.add_argument(
+    noise_prop_p.add_argument('--rx-noise-fig',
+                              required=True,
+                              type=float,
+                              help='Receiver\'s noise figure in dB.')
+
+    rx_feed_p = parser.add_argument_group('Rx Feed Options')
+    rx_feed_p.add_argument('--mispointing-loss',
+                           type=float,
+                           default=0,
+                           help='Loss in dB due to antenna mispointing.')
+    rx_feed_p.add_argument('--lnb-gain',
+                           required=True,
+                           type=float,
+                           help='LNB\'s gain.')
+    rx_feed_p.add_argument(
         '--coax-length',
         required=True,
         type=float,
         help='Length of the coaxial transmission line between the LNB and the '
         'receiver in ft.')
-    parser.add_argument('--rx-noise-fig',
-                        required=True,
-                        type=float,
-                        help='Receiver\'s noise figure in dB.')
-    parser.add_argument('--mispointing-loss',
-                        type=float,
-                        default=0,
-                        help='Loss in dB due to antenna mispointing')
 
     fdma_group = parser.add_argument_group(
         title='FDMA Carrier Power Options',
@@ -129,7 +141,7 @@ def get_parser():
     fdma_group.add_argument(
         '--tp-bw',
         type=float,
-        help="Transponder bandwidth in Hz, required if the PEB is provided")
+        help="Transponder bandwidth in Hz, required if the PEB is provided.")
 
     pos_p = parser.add_argument_group(
         'Satellite and Earth Station Position Information')
@@ -137,22 +149,22 @@ def get_parser():
         '--sat-long',
         type=float,
         help='Satellite\'s longitude. Negative to the West and positive to '
-        'the East')
+        'the East.')
     pos_p.add_argument(
         '--rx-long',
         type=float,
         help='Rx station\'s longitude. Negative to the West and positive '
-        'to the East')
+        'to the East.')
     pos_p.add_argument(
         '--rx-lat',
         type=float,
         help='Rx station\'s latitude. Positive to the North and negative '
-        'to the South')
+        'to the South.')
     pos_p.add_argument(
         '--slant-range',
         type=float,
         help='Slant path length in km between the Rx station and the '
-        'satellite or reflector')
+        'satellite or reflector.')
 
     radar_p = parser.add_argument_group('Radar Options')
     radar_p.add_argument(
@@ -160,19 +172,19 @@ def get_parser():
         default=False,
         action='store_true',
         help='Activate radar mode, so that the link budget considers the '
-        'pathloss to and back from object')
+        'pathloss to and back from object.')
     radar_p.add_argument('--radar-alt',
                          type=float,
                          help='Altitude of the radar object')
     radar_p.add_argument('--radar-cross-section',
                          type=float,
-                         help='Radar cross section of the radar object')
+                         help='Radar cross section of the radar object.')
     radar_p.add_argument(
         '--radar-bistatic',
         default=False,
         action='store_true',
         help='Bistatic radar scenario, i.e., radar transmitter and receiver '
-        'are not collocated')
+        'are not collocated.')
     return parser
 
 

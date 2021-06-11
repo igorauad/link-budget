@@ -20,11 +20,16 @@ tool. To build the package and install it, run:
 
    make && make install
 
-Command-line Interface
+Basic Usage
 ======================
 
-Example:
-
+The `link-budget` utility accepts a range of parameters. The following example
+computes the link budget for a 52 dBW EIRP at 12.45 GHz, with an
+intermediate-frequency (IF) bandwidth of 24 MHz. The Rx dish has a diameter of
+0.46 m, and the antenna noise temperature is 20 K. The LNB has a conversion gain
+of 40 dB and a noise figure of 0.6 dB. It connects to a receiver with a noise
+figure of 10 dB over a coaxial cable with 110 ft. Lastly, this example receiver
+station is at longitude -82.43 degrees and latitude 29.71 degrees.
 
 .. code-block:: bash
 
@@ -43,10 +48,10 @@ Example:
       --rx-lat 29.71
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-   main
+   cli
    calc
    antenna
    pointing

@@ -6,7 +6,7 @@ if sys.version_info[0] < 3:
     raise SystemExit("Error: the link-budget tool requires Python 3")
 
 version = re.search(r'^__version__\s*=\s*"(.*)"',
-                    open('linkbudget/main.py').read(), re.M).group(1)
+                    open('linkbudget/cli.py').read(), re.M).group(1)
 
 long_description = """## link-budget
 
@@ -16,7 +16,7 @@ A link budget calculator for satellite communications and radar systems.
 
 setup(name="link-budget",
       packages=find_packages(),
-      entry_points={"console_scripts": ['link-budget = linkbudget.main:main']},
+      entry_points={"console_scripts": ['link-budget = linkbudget.cli:main']},
       version=version,
       description="Link budget analysis for telecommunications systems",
       long_description=long_description,
