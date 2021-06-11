@@ -14,10 +14,14 @@ def get_parser():
         description="Link Budget Calculator",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    control_p = parser.add_argument_group('Control Options')
-    control_p.add_argument('--json',
+    general_p = parser.add_argument_group('General Options')
+    general_p.add_argument('--json',
                            action='store_true',
                            help='Print results in JSON format.')
+    general_p.add_argument('-v',
+                           '--version',
+                           action='version',
+                           version='%(prog)s {}'.format(__version__))
 
     freq_p = parser.add_argument_group('Frequency Options')
     freq_p.add_argument(
