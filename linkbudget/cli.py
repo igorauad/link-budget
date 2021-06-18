@@ -2,7 +2,7 @@
 import json
 import logging
 import argparse
-from . import calc, pointing, util, constants
+from . import calc, constants, pointing, util
 from .antenna import Antenna
 
 __version__ = "0.1.3"
@@ -274,7 +274,7 @@ def analyze(args, verbose=False):
         eirp_dbw = calc.eirp(args.tx_power, tx_dish.gain_db)
         util.log_result(
             "Tx Power",
-            "{:.2f} kW".format(util.db_to_lin(args.tx_power) / 1e3))
+            "{}".format(util.format_power(util.db_to_lin(args.tx_power))))
     else:
         eirp_dbw = args.eirp
 

@@ -66,7 +66,7 @@ class Antenna:
         util.log_result("{} gain".format(label),
                         "{:.2f} dB".format(self.gain_db))
         util.log_result("{} eff. aperture".format(label),
-                        "{:.2f} m2".format(self.effective_aperture))
+                        "{}".format(util.format_area(self.effective_aperture)))
 
     def _calc_eff_aperture(self, diameter, aperture_efficiency):
         """Compute the antenna's effective aperture area
