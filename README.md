@@ -35,7 +35,6 @@ link-budget \
   --freq 12.45e9 \
   --if-bw 24e6 \
   --rx-dish-size 0.46 \
-  --antenna-noise-temp 20 \
   --lnb-noise-fig 0.6 \
   --lnb-gain 40 \
   --coax-length 110 \

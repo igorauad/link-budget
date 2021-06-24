@@ -41,6 +41,21 @@ class TestAntenna(unittest.TestCase):
         self.assertAlmostEqual(dish1.effective_aperture,
                                dish2.effective_aperture)
 
+    def test_dish_diameter_inference(self):
+        """Test inference of the physical diameter"""
+        freq = 12.45e9
+        # Dish object with diameter informed by argument
+        dish1 = antenna.Antenna(freq, diameter=0.45, efficiency=0.56)
+        # Dish object informing the gain and the aperture efficiency only
+        dish2 = antenna.Antenna(freq, gain=dish1.gain_db, efficiency=0.56)
+        # Verify that the diameter can be inferred correctly
+        self.assertEqual(dish1.diameter, dish2.diameter)
+        # If the efficiency is not provided, the physical diameter cannot be
+        # inferred. In this case, a warning is expected:
+        with self.assertLogs(level='WARNING'):
+            dish3 = antenna.Antenna(freq, gain=dish1.gain_db)
+            self.assertIsNone(dish3.diameter)
+
     def test_required_params(self):
         """Test the required constructor parameters"""
 

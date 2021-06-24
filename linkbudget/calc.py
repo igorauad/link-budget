@@ -381,7 +381,7 @@ def rx_sys_noise_temp(Tar, Te):
 
     # Equation 8-41 from [1], or 4.39 from [2]:
     Tsyst = Tar + Te
-    util.log_result("System noise temp", "{:.2f} K".format(Tsyst))
+    util.log_result("System noise temperature", "{:.2f} K".format(Tsyst))
     return Tsyst
 
 

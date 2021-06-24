@@ -153,7 +153,7 @@ def format_power(power):
 
 def log_header():
     """Log header to form a table with result logs"""
-    w = 25  # width
+    w = 31  # width
     logging.info(w * "-" + "|" + w * "-")
     log_result("Parameter", "Value")
     logging.info(w * "-" + "|" + w * "-")
@@ -167,4 +167,4 @@ def log_result(parameter, value):
         value     : Corresponding value.
 
     """
-    logging.info("{:24s} | {:24s}".format(parameter, value))
+    logging.info("{:30s} | {:30s}".format(parameter, value))

@@ -23,15 +23,17 @@ class TestCli(unittest.TestCase):
         self.base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
             '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
-            '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
-            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
-            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+            '--atmospheric-loss', '0', '--antenna-noise-temp', '20',
+            '--lnb-noise-fig', '0.6', '--lnb-gain', '40', '--coax-length',
+            '110', '--rx-noise-fig', '10', '--sat-long', '-101', '--rx-long',
+            '-82.43', '--rx-lat', '29.71'
         ]
 
     def test_ku_band_example(self):
         # Example SA8-1 from [1]:
         parser = cli.get_parser()
         args = parser.parse_args(self.base_args)
+        cli.validate(parser, args)
         res = cli.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
         # The actual result in [1] is distinct due to various roundings.
@@ -63,6 +65,7 @@ class TestCli(unittest.TestCase):
             '--slant-range',
             '40e3'
         ])
+        cli.validate(parser, args)
         res = cli.analyze(args, verbose=True)
         self.assertAlmostEqual(res['cnr_db'], 22.7, places=1)
 
@@ -91,6 +94,7 @@ class TestCli(unittest.TestCase):
             '--slant-range',
             '40e3'
         ])
+        cli.validate(parser, args)
         res = cli.analyze(args, verbose=True)
         # The book seems to have an error on the clear air noise power given in
         # Table 4.5b, which is given as −135.5 dBW instead of −136.2 dBW as
@@ -113,6 +117,8 @@ class TestCli(unittest.TestCase):
             '100',
             '--rx-dish-gain',
             '31.1',  # See Section 8.7.2
+            '--atmospheric-loss',  # Neglected (See Section 3.5.6)
+            '0',
             '--antenna-noise-temp',
             '51.8',  # See Section 8.10
             '--lnb-noise-fig',
@@ -130,10 +136,51 @@ class TestCli(unittest.TestCase):
             '--radar-cross-section',
             str(radar_cross_section)
         ])
+        cli.validate(parser, args)
         res = cli.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 5.51, places=2)
         # The final result differs slightly from the one presented in [2] due
         # to various rounding of intermediate results.
+
+    def test_ku_band_example_with_atmospheric_attn(self):
+        """Test Ku band example while considering atmospheric attenuation"""
+        # Same arguments based on Example SA8-1 from [1], but now with the
+        # atmospheric attenuation omitted such that the tool computes it
+        # automatically from models. The antenna noise temperature is also
+        # omitted such that it can be derived from the atmospheric
+        # attenuation. Assume also circular polarization to hit that condition
+        # on code coverage.
+        availability = 99.99
+        args = [
+            '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
+            '--polarization', 'circular', '--availability',
+            str(availability), '--rx-dish-size', '0.46',
+            '--rx-dish-efficiency', '0.557', '--lnb-noise-fig', '0.6',
+            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
+            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+        ]
+        parser = cli.get_parser()
+        args = parser.parse_args(args)
+        cli.validate(parser, args)
+        res = cli.analyze(args)
+
+        # With circular polarization, the LNB polarization skew should be
+        # assumed equal to 45 degrees.
+        self.assertEqual(res['pointing']['polarization_skew'], 45)
+
+        # The atmospheric attenuation modeled for a high link availability
+        # (99.99%) in Ku band is usually significant.
+        expected_exceeded_attn_db = 8
+        self.assertGreater(res['atmospheric_loss_db'],
+                           expected_exceeded_attn_db)
+
+        # The resulting C/N is expected to be lower than in
+        # test_ku_band_example (which assumed zero atmospheric loss).
+        self.assertLess(res['cnr_db'], 15.95 - expected_exceeded_attn_db)
+
+        # TODO: replace this test by an example that can be referenced to a
+        # publication. The current version is only guessing a reasonable
+        # attenuation level so that the atmospheric modeling can be covered.
 
     def test_opts(self):
         """Test program options"""
@@ -142,10 +189,10 @@ class TestCli(unittest.TestCase):
         # Base parameters: same as the ones adopted in "test_ku_band_example"
         base_args = [
             '--freq', '12.45e9', '--if-bw', '24e6', '--rx-dish-size', '0.46',
-            '--rx-dish-efficiency', '0.557', '--antenna-noise-temp', '20',
-            '--lnb-noise-fig', '0.6', '--lnb-gain', '40', '--coax-length',
-            '110', '--rx-noise-fig', '10', '--sat-long', '-101', '--rx-long',
-            '-82.43', '--rx-lat', '29.71'
+            '--rx-dish-efficiency', '0.557', '--atmospheric-loss', '0',
+            '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
+            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
+            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
         ]
 
         # Set the EIRP of 52 dBW indirectly through the Tx power and dish gain
@@ -180,9 +227,10 @@ class TestCli(unittest.TestCase):
         # Rx dish gain given directly instead of through the dish size
         base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
-            '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
-            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
-            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+            '--atmospheric-loss', '0', '--antenna-noise-temp', '20',
+            '--lnb-noise-fig', '0.6', '--lnb-gain', '40', '--coax-length',
+            '110', '--rx-noise-fig', '10', '--sat-long', '-101', '--rx-long',
+            '-82.43', '--rx-lat', '29.71'
         ]
         args = parser.parse_args(base_args + ['--rx-dish-gain', '33.024'])
         cli.validate(parser, args)
@@ -193,9 +241,10 @@ class TestCli(unittest.TestCase):
         base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
             '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
-            '--antenna-noise-temp', '20', '--lnb-noise-temp', '42.964',
-            '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
-            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+            '--atmospheric-loss', '0', '--antenna-noise-temp', '20',
+            '--lnb-noise-temp', '42.964', '--lnb-gain', '40', '--coax-length',
+            '110', '--rx-noise-fig', '10', '--sat-long', '-101', '--rx-long',
+            '-82.43', '--rx-lat', '29.71'
         ]
         args = parser.parse_args(base_args)
         res = cli.analyze(args)
@@ -217,8 +266,8 @@ class TestCli(unittest.TestCase):
             args = parser.parse_args(base_args + ['--slant-range', 0])
             cli.validate(parser, args)
 
-        # If the slant is not provided, the satellite and Rx coordinates are
-        # required
+        # If the slant is not provided, the satellite and Rx station
+        # coordinates are required
         base_args = [
             '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
             '--rx-dish-size', '0.46', '--antenna-noise-temp', '20',
@@ -238,6 +287,30 @@ class TestCli(unittest.TestCase):
                     args = parser.parse_args(test_args)
                     cli.validate(parser, args)
 
+        # When modeling the atmospheric loss, the satellite and earth station
+        # coordinates are required.
+        with self.assertLogs(level='ERROR'):  # An error message is logged.
+            with self.assertRaises(SystemExit):
+                args = parser.parse_args(base_args + ['--slant-range', 0])
+                cli.validate(parser, args)
+
+        # Also, the link availability must be within [95, 99.999].
+        base_args += [
+            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+        ]
+        for availability in [50, 94.999, 99.9999, 100]:
+            with self.assertRaises(SystemExit):
+                args = parser.parse_args(
+                    base_args +
+                    ['--availability', str(availability)])
+                cli.validate(parser, args)
+
+        # A warning is printed if the --antenna-noise-temp option is given and
+        # --atmospheric-loss is not.
+        with self.assertLogs(level='WARNING'):
+            args = parser.parse_args(base_args)
+            cli.validate(parser, args)
+
     @unittest.mock.patch('sys.stdout', new_callable=io.StringIO)
     def test_json_verbose_output(self, mock_stdout):
         """Test the output when the analyzer runs in verbose and --json mode"""
@@ -245,13 +318,14 @@ class TestCli(unittest.TestCase):
         args = parser.parse_args(self.base_args + ['--json'])
         # Run the analyzer in verbose mode, in which case it should print the
         # JSON results to stdout in addition to returning them.
+        cli.validate(parser, args)
         json_res = cli.analyze(args, verbose=True)
         printed_json = json.loads(mock_stdout.getvalue())
         self.assertEqual(printed_json, json_res)
 
     @unittest.mock.patch('sys.stdout', new_callable=io.StringIO)
-    def test_main_entrypoint(self, mock_stdout):
-        """Test the main program entrypoint"""
+    def test_main_entrypoint_json(self, mock_stdout):
+        """Test the main program entrypoint with json output"""
 
         # Place arguments on argv
         old_sys_argv = sys.argv
@@ -266,3 +340,23 @@ class TestCli(unittest.TestCase):
         # Check the JSON results printed to stdout
         printed_json = json.loads(mock_stdout.getvalue())
         self.assertAlmostEqual(printed_json['cnr_db'], 15.95, places=2)
+
+    def test_main_entrypoint(self):
+        """Test the main program entrypoint with normal (non-json) output"""
+
+        # Place arguments on argv
+        old_sys_argv = sys.argv
+        sys.argv = [old_sys_argv[0]] + self.base_args
+
+        # Run the main entrypoint and capture the info logs
+        with self.assertLogs(level='INFO') as cm:
+            try:
+                cli.main()
+            finally:
+                sys.argv = old_sys_argv
+
+        # Check the C/N logged to stdout
+        for line in cm.output:
+            if ('C/N' in line):
+                cnr_db = float(line.split()[-2])
+        self.assertAlmostEqual(cnr_db, 15.95, places=2)

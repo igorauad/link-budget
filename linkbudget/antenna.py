@@ -7,7 +7,9 @@ References:
 - [2] Couch, Leon W.. Digital & Analog Communication Systems.
 
 """
-from math import log10, pi
+import logging
+from math import log10, pi, sqrt
+
 from . import util
 
 
@@ -15,11 +17,11 @@ class Antenna:
     """Parabolic antenna
 
     Args:
-        freq       : Operating frequency in Hz.
-        gain       : Antenna gain in dB.
-        diameter   : Diameter in m.
-        efficiency : Aperture efficiency.
-        label : Label used for logs.
+        freq (float): Operating frequency in Hz.
+        gain (float): Antenna gain in dB.
+        diameter (float): Diameter in m.
+        efficiency (float): Aperture efficiency.
+        label (str): Label used for logs.
 
     Note:
         According to [1], the aperture efficiency is typically in the range
@@ -47,8 +49,8 @@ class Antenna:
             raise ValueError("gain must be provided when the diameter, freq, "
                              "and efficiency parameters are not")
 
-        self.diameter = diameter
         self.freq = freq
+        self.diameter = diameter
         self.aperture_efficiency = efficiency
 
         # When the gain is explicitly provided, infer the effective aperture
@@ -59,13 +61,26 @@ class Antenna:
             self.effective_aperture = self._calc_eff_aperture(
                 diameter, efficiency)
             self.gain_db = self._calc_gain(freq, self.effective_aperture)
+            util.log_result("{} aperture efficiency".format(label),
+                            "{:.1f} %".format(efficiency * 100))
         else:
             self.gain_db = gain
             self.effective_aperture = self._infer_eff_aperture(freq, gain)
+            # If the aperture efficiency is provided, infer the physical
+            # diameter of an equivalent parabolic reflector.
+            if (efficiency is not None):
+                self.diameter = self._infer_diameter(self.effective_aperture,
+                                                     self.aperture_efficiency)
+                util.log_result("{} inferred diameter".format(label),
+                                "{:.2f} m".format(self.diameter))
+            else:
+                logging.warning(
+                    "Cannot infer the physical diameter of {} "
+                    "(aperture efficiency required).".format(label))
 
         util.log_result("{} gain".format(label),
                         "{:.2f} dB".format(self.gain_db))
-        util.log_result("{} eff. aperture".format(label),
+        util.log_result("{} effective aperture".format(label),
                         "{}".format(util.format_area(self.effective_aperture)))
 
     def _calc_eff_aperture(self, diameter, aperture_efficiency):
@@ -75,16 +90,27 @@ class Antenna:
 
         .. math::
 
-          Ae = \\eta A,
+          A_e = \\eta A,
 
-        where A represents the antenna's physical aperture area.
+        where :math:`A` represents the antenna's physical aperture area and
+        :math:`\\eta` is the aperture efficiency.
 
-        If the aperture is circular with a diameter D in meters (or radius r),
-        the physical aperture area is given by:
+        If the aperture is circular with a diameter :math:`D` in meters (or
+        radius :math:`r`), the physical aperture area is given by:
 
         .. math::
 
           A = 𝜋 r^2 = \\frac{𝜋 D^2}{4}.
+
+        Hence, the effective aperture area becomes:
+
+        .. math::
+
+          A_e = \\frac{\\eta 𝜋 D^2}{4}.
+
+        Args:
+            diameter (float): Diameter in m.
+            aperture_efficiency (float): Aperture efficiency.
 
         Returns:
             Effective aperture area in square meters (m^2).
@@ -101,9 +127,13 @@ class Antenna:
 
         .. math::
 
-          G = \\frac{4𝜋Ae}{𝜆^2},
+          G = \\frac{4𝜋A_e}{𝜆^2},
 
-        where Ae is the effective aperture and 𝜆 is the wavelength.
+        where :math:`A_e` is the effective aperture and 𝜆 is the wavelength.
+
+        Args:
+            freq (float): Operating frequency in Hz.
+            effective_aperture (float): Effective aperture in square meters.
 
         Returns:
             Gain in dB.
@@ -121,12 +151,61 @@ class Antenna:
 
         .. math::
 
-          Ae = \\frac{G 𝜆^2}{4𝜋}.
+          A_e = \\frac{G 𝜆^2}{4𝜋}.
+
+        Args:
+            freq (float): Operating frequency in Hz.
+            gain_db (float): Antenna gain in dB.
 
         Returns:
-            Effective aperture area in square meters (m^2).
+            float: Effective aperture area in square meters (m^2).
 
         """
         wavelength = util.wavelength(freq)
         gain = util.db_to_lin(gain_db)
         return gain * (wavelength**2) / (4 * pi)
+
+    def _infer_diameter(self, effective_aperture, aperture_efficiency):
+        """Infer the diameter of an equivalent parabolic reflector
+
+        The physical aperture area :math:`A` can be expressed in terms of the
+        effective aperture :math:`A_e` and the aperture efficiency
+        :math:`\\eta`, as follows:
+
+        .. math::
+
+          A = \\frac{A_e}{\\eta}.
+
+        If the aperture is circular with a diameter D in meters, the physical
+        aperture area is given by:
+
+        .. math::
+
+          A = \\frac{𝜋 D^2}{4}.
+
+        Hence, it follows that:
+
+        .. math::
+
+          D = \\sqrt{\\frac{4 A_e}{\\eta \\pi}}.
+
+        Note:
+            This inference is useful when working with a non-parabolic antenna,
+            such as a flat-panel antenna. In this case, you may know the
+            antenna gain and aperture efficiency specifications, but not the
+            physical diameter and aperture of the antenna. Meanwhile, the
+            diameter may still be required for computations such as the
+            tropospheric scintillation model from Recommendation ITU-R 618
+            (see, e.g., `ITU-Rpy
+            <https://itu-rpy.readthedocs.io/en/latest/apidoc/itu618.html>`_).
+
+        Args:
+            effective_aperture (float): Effective aperture in square meters.
+            aperture_efficiency (float): Aperture efficiency.
+
+        Returns:
+            float: Diameter in meters (m) of an equivalent parabolic reflector
+            with the same aperture efficiency.
+
+        """
+        return sqrt((4 * effective_aperture) / (aperture_efficiency * pi))

@@ -1,10 +1,11 @@
-"""
-Satellite look angle computations
+"""Satellite look angle computations
 
 References:
 
 - [1] https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf.
 - [2] https://en.wikipedia.org/wiki/Earth_radius.
+- [3] Maral, Gerard., Sun, Zhili., Bousquet, Michel. Satellite Communications
+  Systems: Systems, Techniques and Technology. 3rd ed.
 
 """
 from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
@@ -26,7 +27,7 @@ def _look_angles_ellipsoidal(sat_long,
     Args:
         sat_long   : Subsatellite point's geodetic longitude
         rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Geodetic latitute of the receiver station in degrees
+        rx_lat     : Geodetic latitude of the receiver station in degrees
         rx_height  : Orthometric height (height above sea-evel)
         sat_alt    : Satellite/reflector altitude in meters (default to
                      the geosynchronous altitude)
@@ -118,7 +119,7 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=GEOSYNC_ORBIT):
     Args:
         sat_long   : Subsatellite point's geodetic longitude
         rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Geodetic latitute of the receiver station in degrees
+        rx_lat     : Geodetic latitude of the receiver station in degrees
         sat_alt    : Satellite/reflector altitude in meters (default to
                      the geosynchronous altitude)
 
@@ -192,7 +193,7 @@ def look_angles(sat_long,
     Args:
         sat_long       : Subsatellite point's geodetic longitude.
         rx_long        : Longitude of the receiver station in degrees.
-        rx_lat         : Geodetic latitute of the receiver station in degrees.
+        rx_lat         : Geodetic latitude of the receiver station in degrees.
         sat_alt        : Satellite/reflector altitude in meters (default to
                          the geosynchronous altitude).
         implementation : "ellipsoidal" to use the rigorous ellipsoidal
@@ -224,3 +225,70 @@ def look_angles(sat_long,
     util.log_result("Distance", "{:.2f} km".format(d / 1e3))
 
     return elev, azt, d
+
+
+def polarization_angle(sat_long, rx_long, rx_lat):
+    """Compute the polarization angle (skew) at a given location
+
+    A linearly polarized satellite transmission has the electric field oriented
+    at a constant angle relative to a reference plane. For a satellite antenna,
+    the reference plane is the equatorial plane. If the polarization is
+    horizontal, the electric field is parallel to the equatorial
+    plane. Otherwise, when the linear polarization is vertical, it is
+    perpendicular to the equatorial plane.
+
+    The earth station antenna feed must have its polarization aligned with the
+    polarization plane of the received wave. However, the local vertical
+    (normal) plane does not match the equatorial plane due to the curvature of
+    the earth. Hence, there is an angle difference between the polarization of
+    the signal transmitted by the satellite and the apparent polarization of
+    the received signal, which is known as the polarization angle or
+    polarization skew (sometimes also referred to as "polarity", "polarity
+    skew", "LNB skew", or just "skew").
+
+    When pointing an linearly-polarized earth station antenna, this angle has
+    to be taken into account. In contrast, if pointing a circularly-polarized
+    antenna, there is no need to compensate for the polarization skew.
+
+    For geostationary satellites, [3] presents the skew formula that follows:
+
+    .. math::
+
+        \\psi = \\tan^{-1} \\left( \\frac{\\sin(L)}{\\tan(l)} \\right)
+
+    where :math:`L` is the relative longitude (difference between the earth
+    station's longitude and the satellite longitude) and :math:`l` is the earth
+    station's latitude.
+
+    As indicated by the equation, the skew is 0 when the earth station and the
+    satellite are at the same longitude (when the relative longitude is zero).
+
+    Note that, for a positive skew value, the LNB must be rotated clockwise,
+    whereas, for a negative polarization angle, the LNB must be rotated
+    counterclockwise. Furthermore, note that the clockwise and counterclockwise
+    directions are relative to the front face (the feed horn) of the LNB. In
+    other words, for a positive skew value, someone standing behind the dish
+    and facing the satellite in the sky would rotate the LNB clockwise.
+
+    Args:
+        sat_long (float): Subsatellite point's geodetic longitude.
+        rx_long  (float): Earth station's geodetic longitude in degrees.
+        rx_lat   (float): Earth station's geodetic latitude in degrees.
+
+    Returns:
+        float: Polarization angle in degrees.
+
+    """
+    # Convert to radians
+    sat_long = radians(sat_long)
+    rx_long = radians(rx_long)
+    rx_lat = radians(rx_lat)
+
+    # Computation based on Eq. (8.22c) from [3]:
+    delta_long = rx_long - sat_long
+    pol_angle_rad = atan(sin(delta_long) / tan(rx_lat))
+
+    # Return the polarization angle in degrees
+    pol_angle = degrees(pol_angle_rad)
+    util.log_result("Polarizationa angle", "{:.2f} degrees".format(pol_angle))
+    return pol_angle

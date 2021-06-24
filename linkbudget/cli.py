@@ -2,10 +2,11 @@
 import json
 import logging
 import argparse
-from . import calc, constants, pointing, util
+
+from . import calc, constants, propagation, pointing, util
 from .antenna import Antenna
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 
 def get_parser():
@@ -35,6 +36,13 @@ def get_parser():
                         required=True,
                         type=float,
                         help='IF bandwidth in Hz.')
+
+    pol_p = parser.add_argument_group('Polarization Options')
+    pol_p.add_argument(
+        '--polarization',
+        choices=['circular', 'linear'],
+        default='linear',
+        help='Polarization of the transmitted electromagnetic wave.')
 
     tx_feed_p = parser.add_argument_group('Tx Feed Options')
     tx_pwr_group = tx_feed_p.add_mutually_exclusive_group(required=True)
@@ -73,7 +81,10 @@ def get_parser():
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
-        'transmission. Considered when the dish is specified by size.')
+        'transmission. Determines the antenna gain when the dish is specified '
+        'by size (option ``--tx-dish-size``). Otherwise, when the gain is '
+        'defined directly by option ``--tx-dish-gain``, this parameter is '
+        'used to infer the diameter of an equivalent parabolic reflector.')
     rx_dish_group = dish_p.add_mutually_exclusive_group(required=True)
     rx_dish_group.add_argument('--rx-dish-size',
                                type=float,
@@ -86,42 +97,56 @@ def get_parser():
         type=float,
         default=0.56,
         help='Aperture efficiency of the parabolic antenna used for '
-        'reception. Considered when the dish is specified by size.')
+        'reception. Determines the antenna gain when the dish is specified by '
+        'size (option ``--rx-dish-size``). Otherwise, when the gain is '
+        'defined directly by option ``--rx-dish-gain``, this parameter is '
+        'used to infer the diameter of an equivalent parabolic reflector.')
 
-    noise_prop_p = parser.add_argument_group('Noise and Propagation Options')
-    sky_noise_group = noise_prop_p.add_mutually_exclusive_group(required=True)
-    sky_noise_group.add_argument(
-        '--antenna-noise-temp',
-        type=float,
-        help='Receive antenna\'s noise temperature in K.')
-    sky_noise_group.add_argument(
+    prop_p = parser.add_argument_group('Propagation Options')
+    prop_p.add_argument(
         '--atmospheric-loss',
         type=float,
         help='Attenuation in dB experienced through the atmosphere. It should '
-        'always include the clear air attenuation, and it could also include '
-        'other effects such as rain attenuation.')
-    lnb_noise_group = noise_prop_p.add_mutually_exclusive_group(required=True)
+        'always include the clear air attenuation, and it could include other '
+        'effects such as rain and cloud attenuation. When analyzing a radar '
+        'system, note this option should determine the one-way attenuation, '
+        'not the two-way. When omitted, the program assumes a reasonable '
+        'atmospheric attenuation based on models from ITU-R recommendations.')
+    prop_p.add_argument(
+        '--availability',
+        type=float,
+        default=99,
+        help='Target link availability in %% to consider on the atmospheric '
+        'attenuation model. For instance, when targeting at a 99.9%% '
+        'availability, the analysis is based on the atmospheric attenuation '
+        'exceeded 0.1%% of the time.')
+
+    rx_p = parser.add_argument_group('Rx Options')
+    rx_p.add_argument(
+        '--antenna-noise-temp',
+        type=float,
+        help='Receive antenna\'s noise temperature in K. When omitted, '
+        'this parameter is derived based on the atmospheric attenuation.')
+    rx_p.add_argument('--mispointing-loss',
+                      type=float,
+                      default=0,
+                      help='Loss in dB due to antenna mispointing.')
+    lnb_noise_group = rx_p.add_mutually_exclusive_group(required=True)
     lnb_noise_group.add_argument('--lnb-noise-fig',
                                  type=float,
                                  help='LNB\'s noise figure in dB.')
     lnb_noise_group.add_argument('--lnb-noise-temp',
                                  type=float,
                                  help='LNB\'s noise temperature in K.')
-    noise_prop_p.add_argument('--rx-noise-fig',
-                              required=True,
-                              type=float,
-                              help='Receiver\'s noise figure in dB.')
-
-    rx_feed_p = parser.add_argument_group('Rx Feed Options')
-    rx_feed_p.add_argument('--mispointing-loss',
-                           type=float,
-                           default=0,
-                           help='Loss in dB due to antenna mispointing.')
-    rx_feed_p.add_argument('--lnb-gain',
-                           required=True,
-                           type=float,
-                           help='LNB\'s gain.')
-    rx_feed_p.add_argument(
+    rx_p.add_argument('--lnb-gain',
+                      required=True,
+                      type=float,
+                      help='LNB\'s gain.')
+    rx_p.add_argument('--rx-noise-fig',
+                      required=True,
+                      type=float,
+                      help='Receiver\'s noise figure in dB.')
+    rx_p.add_argument(
         '--coax-length',
         required=True,
         type=float,
@@ -138,10 +163,10 @@ def get_parser():
         help="Power-equivalent bandwidth (PEB) in Hz assigned for the FDMA "
         "carrier. When provided, the EIRP computed from --eirp or --tx-power "
         "refers to the transponder, while the PEB determines the fraction of "
-        "this transponder EIRP that is allocated to the carrier. In this "
-        "case, note the output backoff must refer to the transponder too, not "
-        "the carrier. If the output backoff represents the carrier "
-        "backoff, do not inform the carrier PEB.")
+        "this transponder EIRP allocated to the carrier. In this case, note "
+        "the output backoff must refer to the transponder, not the carrier. "
+        "If the output backoff represents the carrier backoff, do not inform "
+        "the carrier PEB.")
     fdma_group.add_argument(
         '--tp-bw',
         type=float,
@@ -175,14 +200,14 @@ def get_parser():
         '--radar',
         default=False,
         action='store_true',
-        help='Activate radar mode, so that the link budget considers the '
-        'pathloss to and back from object.')
+        help='Activate radar mode so that the link budget considers the '
+        'path loss to and back from object.')
     radar_p.add_argument('--radar-alt',
                          type=float,
                          help='Altitude of the radar object')
     radar_p.add_argument('--radar-cross-section',
                          type=float,
-                         help='Radar cross section of the radar object.')
+                         help='Radar cross-section of the radar object.')
     radar_p.add_argument(
         '--radar-bistatic',
         default=False,
@@ -198,6 +223,13 @@ def validate(parser, args):
             and args.tx_dish_gain is None):
         parser.error("Define either --tx-dish-size or --tx-dish-gain  "
                      "using option --tx-power")
+
+    # Link availability must be within [95, 99.999] because that's the range
+    # supported by the ITU-R models (see, e.g., Step 10 in Section 2.2.1.1 of
+    # ITU-R P.618-13).
+    if (args.availability > 99.999 or args.availability < 95):
+        parser.error(
+            "Target link availability must be between 95 and 99.999 %%")
 
     if (args.radar):
         if (args.slant_range is None and args.radar_alt is None):
@@ -226,9 +258,39 @@ def validate(parser, args):
                          "s" if len(defined_pos_args) > 1 else "",
                          ", ".join(defined_pos_args)))
 
+    # The atmospheric loss models require the Rx/satellite coordinates.
+    if len(missing_pos_args) > 0 and args.atmospheric_loss is None:
+        logging.error(
+            "Unable to model the atmospheric loss without the Rx and "
+            "satellite coordinates")
+        parser.error(
+            "Define the --atmospheric-loss or substitute --slant-range by the "
+            "Rx/satellite coordinates")
+
+    # If the antenna noise temperature is given directly, it will take
+    # precedence over the inferred temperature based on the atmospheric
+    # loss. This approach makes more sense when the atmospheric loss is also
+    # given directly. When the atmospheric loss is not given directly, it is
+    # determined automatically from ITU-R models. In this case, it makes sense
+    # to let the antenna noise temperature be determined by the same models
+    # too. Warn the user to prevent unintenional usage of the option.
+    if (args.atmospheric_loss is None and args.antenna_noise_temp is not None):
+        logging.warning(
+            "Atmospheric loss model used to determine the atmospheric "
+            "attenuation but not the antenna noise temperature (overriden by "
+            "option --antenna-noise-temp)")
+
     if (args.carrier_peb is not None and args.tp_bw is None):
         parser.error("Argument --tp-bw is required if option --carrier-peb "
                      "is defined")
+
+
+def configure_logging():
+    """Configure the logging format"""
+    logging_fmt = "%(levelname)s %(message)s"
+    logging.basicConfig(level=logging.INFO, format=logging_fmt)
+    # Keep the level name except if it's an INFO message
+    logging.addLevelName(logging.INFO, '')
 
 
 def analyze(args, verbose=False):
@@ -243,8 +305,6 @@ def analyze(args, verbose=False):
 
     """
     if (verbose and not args.json):
-        logging_fmt = "%(message)s"
-        logging.basicConfig(level=logging.INFO, format=logging_fmt)
         util.log_header()
 
     # -------- Look angles --------
@@ -255,11 +315,23 @@ def analyze(args, verbose=False):
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(
             args.sat_long, args.rx_long, args.rx_lat, sat_alt)
+
+        # Polarization skew
+        #
+        # NOTE: this parameter is used in the atmospheric loss model. It is
+        # assumed equal to 45 degrees for circular polarization, according to
+        # Recommendation ITU-R P.838-3.
+        if (args.polarization == 'linear'):
+            pol_skew = pointing.polarization_angle(args.sat_long, args.rx_long,
+                                                   args.rx_lat)
+        else:
+            pol_skew = 45
     else:
-        elevation = azimuth = None
+        elevation = azimuth = pol_skew = None
         slant_range_m = args.slant_range * 1e3  # km to m
 
-    # -------- EIRP --------
+    # -------- Tx dish gain --------
+    # Skipped if the EIRP is given directly.
     if (args.eirp is None):
         if args.tx_dish_gain is None:
             tx_dish = Antenna(freq=args.freq,
@@ -269,8 +341,23 @@ def analyze(args, verbose=False):
         else:
             tx_dish = Antenna(freq=args.freq,
                               gain=args.tx_dish_gain,
+                              efficiency=args.tx_dish_efficiency,
                               label="Tx dish")
 
+    # -------- Rx dish gain --------
+    if (args.rx_dish_gain is None):
+        rx_dish = Antenna(freq=args.freq,
+                          diameter=args.rx_dish_size,
+                          efficiency=args.rx_dish_efficiency,
+                          label="Rx dish")
+    else:
+        rx_dish = Antenna(freq=args.freq,
+                          gain=args.rx_dish_gain,
+                          efficiency=args.rx_dish_efficiency,
+                          label="Rx dish")
+
+    # -------- EIRP --------
+    if (args.eirp is None):
         eirp_dbw = calc.eirp(args.tx_power, tx_dish.gain_db)
         util.log_result(
             "Tx Power",
@@ -301,19 +388,39 @@ def analyze(args, verbose=False):
     # station.
 
     # -------- Atmospheric loss --------
-    # When defined, the atmospheric loss defines the antenna noise temperature
-    # on reception. It also adds to the free-space path loss. On radar systems,
-    # assume the atmospheric loss is experienced twice.
-    atmospheric_loss_db = args.atmospheric_loss or 0
+    #
+    # When the atmospheric loss is defined on argument "--atmospheric-loss", it
+    # is prioritized over the atmospheric loss models. In contrast, when it is
+    # not defined (the default), as long as the Rx station's coordinates and
+    # the elevation are known, the atmospheric loss is computed from ITU-R
+    # models. If the Rx and satellite coordinates are not available, the
+    # atmospheric loss must be provided, otherwise the parser throws an error.
+    #
+    # Note that, ultimately, the atmospheric loss has two effects. It defines
+    # the antenna noise temperature on reception (i.e., adds noise), and it
+    # increases the path loss (i.e., reduces the signal power). In other words,
+    # it disturbs both the numerator and the denominator of the C/N.
+    if (args.atmospheric_loss is not None):
+        one_way_atmospheric_loss_db = args.atmospheric_loss
+    elif (all(v is not None for v in [args.rx_lat, args.rx_lat, elevation])):
+        # Model the atmospheric attenuation for a given link availability.
+        one_way_atmospheric_loss_db = propagation.atmospheric_attenuation(
+            args.rx_lat, args.rx_long, elevation, pol_skew, args.freq,
+            args.availability, rx_dish.diameter, rx_dish.aperture_efficiency)
+
+    # On radar systems, assume the atmospheric loss is experienced twice.
     if (args.radar):
-        util.log_result("One-way atmospheric loss",
-                        "{:.2f} dB".format(atmospheric_loss_db))
-        atmospheric_loss_db = 2 * atmospheric_loss_db
-        util.log_result("Total atmospheric loss",
-                        "{:.2f} dB".format(atmospheric_loss_db))
+        two_way_atmospheric_loss_db = 2 * one_way_atmospheric_loss_db
+        util.log_result("Total one-way atmospheric loss",
+                        "{:.2f} dB".format(one_way_atmospheric_loss_db))
+        util.log_result("Total two-way atmospheric loss",
+                        "{:.2f} dB".format(two_way_atmospheric_loss_db))
     else:
-        util.log_result("Atmospheric loss",
-                        "{:.2f} dB".format(atmospheric_loss_db))
+        util.log_result("Total atmospheric loss",
+                        "{:.2f} dB".format(one_way_atmospheric_loss_db))
+
+    total_atmospheric_loss_db = two_way_atmospheric_loss_db if (args.radar) \
+        else one_way_atmospheric_loss_db
 
     # -------- Reflected EIRP (radar mode only) --------
     # Compute the equivalent EIRP reflected off the radar object
@@ -321,21 +428,10 @@ def analyze(args, verbose=False):
         one_way_path_loss_db = calc._path_loss(slant_range_m, args.freq)
         reflected_eirp_dbw = eirp_dbw \
             - one_way_path_loss_db \
-            - (atmospheric_loss_db/2) \
+            - one_way_atmospheric_loss_db \
             + radar_obj_gain_db
         util.log_result("Reflected EIRP",
                         "{:.2f} dBW".format(reflected_eirp_dbw))
-
-    # -------- Rx dish gain --------
-    if (args.rx_dish_gain is None):
-        rx_dish = Antenna(freq=args.freq,
-                          diameter=args.rx_dish_size,
-                          efficiency=args.rx_dish_efficiency,
-                          label="Rx dish")
-    else:
-        rx_dish = Antenna(freq=args.freq,
-                          gain=args.rx_dish_gain,
-                          label="Rx dish")
 
     # -------- Noise figure --------
     coax_loss_db, coax_noise_fig_db = calc.coax_loss_nf(args.coax_length)
@@ -354,18 +450,19 @@ def analyze(args, verbose=False):
     # -------- System noise temperature --------
     effective_input_noise_temp = calc.noise_fig_to_noise_temp(noise_fig_db)
 
-    util.log_result("Input-noise temp",
+    util.log_result("Input-noise temperature",
                     "{:.2f} K".format(effective_input_noise_temp))
 
     if (args.antenna_noise_temp is None):
-        antenna_noise_temp = calc.antenna_noise_temp(args.atmospheric_loss)
+        antenna_noise_temp = calc.antenna_noise_temp(
+            one_way_atmospheric_loss_db)
         # NOTE: consider the atmospheric loss only once here even if analyzing
         # a radar system. This call determines the sky's contribution to the Rx
         # antenna noise temperature.
     else:
         antenna_noise_temp = args.antenna_noise_temp
 
-    util.log_result("Antenna noise temp",
+    util.log_result("Antenna noise temperature",
                     "{:.2f} K".format(antenna_noise_temp))
 
     T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
@@ -376,14 +473,15 @@ def analyze(args, verbose=False):
     if (args.radar):
         rx_flux_dbw_m2 = calc.rx_flux_density(reflected_eirp_dbw,
                                               slant_range_m,
-                                              (atmospheric_loss_db / 2))
+                                              one_way_atmospheric_loss_db)
         # TODO: use the radar-to-Rx distance instead of the Tx-to-radar slant
         # range when running in bistatic radar mode (when supported).
     else:
+        assert (one_way_atmospheric_loss_db == total_atmospheric_loss_db)
         rx_flux_dbw_m2 = calc.rx_flux_density(eirp_dbw, slant_range_m,
-                                              atmospheric_loss_db)
+                                              one_way_atmospheric_loss_db)
     P_rx_dbw = calc.rx_power(eirp_dbw, path_loss_db, rx_dish.gain_db,
-                             atmospheric_loss_db, args.mispointing_loss)
+                             total_atmospheric_loss_db, args.mispointing_loss)
 
     # -------- Noise Power --------
     N_dbw = calc.noise_power(
@@ -409,11 +507,12 @@ def analyze(args, verbose=False):
         'pointing': {
             'elevation': elevation,
             'azimuth': azimuth,
+            'polarization_skew': pol_skew,
             'slant_range': slant_range_m
         },
         'eirp_db': eirp_dbw,
         'path_loss_db': path_loss_db,
-        'atmospheric_loss_db': atmospheric_loss_db,
+        'atmospheric_loss_db': total_atmospheric_loss_db,
         'rx_dish_gain_db': rx_dish.gain_db,
         'noise_fig_db': {
             'lnb': lnb_noise_fig,
@@ -447,5 +546,7 @@ def analyze(args, verbose=False):
 def main():
     parser = get_parser()
     args = parser.parse_args()
+    if (not args.json):
+        configure_logging()
     validate(parser, args)
     analyze(args, verbose=True)
