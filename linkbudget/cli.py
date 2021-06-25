@@ -219,6 +219,20 @@ def get_parser():
 
 def validate(parser, args):
     """Validate command-line arguments"""
+
+    # Validate the latitude and longitude coordinates
+    lat = args.rx_lat
+    lng1 = args.rx_long
+    lng2 = args.sat_long
+    if (lat is not None and (lat < -90 or lat > 90)):
+        parser.error("--rx-lat must be within -90 (South) to +90 (North).")
+
+    if (lng1 is not None and (lng1 < -180 or lng1 > 180)):
+        parser.error("--rx-long must be within -180 (West) to +180 (East).")
+
+    if (lng2 is not None and (lng2 < -180 or lng2 > 180)):
+        parser.error("--sat-long must be within -180 (West) to +180 (East).")
+
     if (args.tx_power and args.tx_dish_size is None
             and args.tx_dish_gain is None):
         parser.error("Define either --tx-dish-size or --tx-dish-gain  "

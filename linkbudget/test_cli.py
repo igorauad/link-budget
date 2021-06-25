@@ -192,8 +192,36 @@ class TestCli(unittest.TestCase):
             '--rx-dish-efficiency', '0.557', '--atmospheric-loss', '0',
             '--antenna-noise-temp', '20', '--lnb-noise-fig', '0.6',
             '--lnb-gain', '40', '--coax-length', '110', '--rx-noise-fig', '10',
-            '--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'
+            '--sat-long', '-101'
         ]
+
+        # Test out-of-range latitude and longitude coordinates
+        for rx_lat in [-91, 91]:
+            with self.assertRaises(SystemExit):
+                args = parser.parse_args(base_args + [
+                    '--eirp', '52', '--sat-long', '-101', '--rx-long',
+                    '-82.43', '--rx-lat',
+                    str(rx_lat)
+                ])
+                cli.validate(parser, args)
+        for rx_long in [-181, 181]:
+            with self.assertRaises(SystemExit):
+                args = parser.parse_args(base_args + [
+                    '--eirp', '52', '--sat-long', '-101', '--rx-long',
+                    str(rx_long), '--rx-lat', '29.71'
+                ])
+                cli.validate(parser, args)
+        for sat_long in [-181, 181]:
+            with self.assertRaises(SystemExit):
+                args = parser.parse_args(base_args + [
+                    '--eirp', '52', '--sat-long',
+                    str(sat_long), '--rx-long', '-82.43', '--rx-lat', '29.71'
+                ])
+                cli.validate(parser, args)
+
+        # Now with the validate coordinates adopted in "test_ku_band_example"
+        base_args.extend(
+            ['--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'])
 
         # Set the EIRP of 52 dBW indirectly through the Tx power and dish gain
         args = parser.parse_args(base_args +
