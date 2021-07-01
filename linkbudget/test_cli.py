@@ -182,6 +182,28 @@ class TestCli(unittest.TestCase):
         # publication. The current version is only guessing a reasonable
         # attenuation level so that the atmospheric modeling can be covered.
 
+    def test_ku_band_example_with_margin(self):
+        """Test Ku band example with the link margin for a target min CNR
+
+        Introduce a hypothetical minimum CNR and implementation margin in the
+        scenario of Example SA8-1 from [1].
+
+        """
+        min_cnr = 2
+        impl_margin = 1
+        parser = cli.get_parser()
+        args = parser.parse_args(
+            self.base_args +
+            ['--min-cnr',
+             str(min_cnr), '--impl-margin',
+             str(impl_margin)])
+        cli.validate(parser, args)
+        res = cli.analyze(args)
+        self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
+        self.assertAlmostEqual(res['margin_db'],
+                               15.95 - (min_cnr + impl_margin),
+                               places=2)
+
     def test_opts(self):
         """Test program options"""
         parser = cli.get_parser()
@@ -219,7 +241,7 @@ class TestCli(unittest.TestCase):
                 ])
                 cli.validate(parser, args)
 
-        # Now with the validate coordinates adopted in "test_ku_band_example"
+        # Now with the valid coordinates adopted in "test_ku_band_example"
         base_args.extend(
             ['--sat-long', '-101', '--rx-long', '-82.43', '--rx-lat', '29.71'])
 
@@ -337,6 +359,11 @@ class TestCli(unittest.TestCase):
         # --atmospheric-loss is not.
         with self.assertLogs(level='WARNING'):
             args = parser.parse_args(base_args)
+            cli.validate(parser, args)
+
+        # Try a negative implementation margin
+        with self.assertRaises(SystemExit):
+            args = parser.parse_args(self.base_args + ['--impl-margin', '-1'])
             cli.validate(parser, args)
 
     @unittest.mock.patch('sys.stdout', new_callable=io.StringIO)

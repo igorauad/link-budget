@@ -24,6 +24,19 @@ def get_parser():
                            action='version',
                            version='%(prog)s {}'.format(__version__))
 
+    margin_p = parser.add_argument_group('Margin Options')
+    margin_p.add_argument(
+        '--min-cnr',
+        type=float,
+        help='Target minimum carrier-to-noise ratio (CNR) in dB considering '
+        'an ideal receiver (i.e., excluding the implementation margin).')
+    margin_p.add_argument(
+        '--impl-margin',
+        type=float,
+        default=0,
+        help='Implementation margin in dB accounting for the non-ideal '
+        'behavior of the receiver system.')
+
     freq_p = parser.add_argument_group('Frequency Options')
     freq_p.add_argument(
         '--freq',
@@ -298,6 +311,10 @@ def validate(parser, args):
         parser.error("Argument --tp-bw is required if option --carrier-peb "
                      "is defined")
 
+    # Validate the implementation margin
+    if (args.impl_margin < 0):
+        parser.error("argument --impl-margin must be a non-negative number")
+
 
 def configure_logging():
     """Configure the logging format"""
@@ -511,10 +528,10 @@ def analyze(args, verbose=False):
 
     # -------- G/T and CNR --------
     g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
-    cnr = calc.cnr(P_rx_dbw, N_dbw)
+    cnr_db = calc.cnr(P_rx_dbw, N_dbw)
 
     # -------- Capacity --------
-    capacity = calc.capacity(cnr, args.if_bw)
+    capacity = calc.capacity(cnr_db, args.if_bw)
 
     # Results
     res = {
@@ -547,9 +564,16 @@ def analyze(args, verbose=False):
         },
         'rx_flux_dbw_m2': rx_flux_dbw_m2,
         'g_over_t_db': g_over_t_db,
-        'cnr_db': cnr,
+        'cnr_db': cnr_db,
         'capacity_bps': capacity
     }
+
+    # -------- Link Margin --------
+    if (args.min_cnr is not None):
+        effective_min_cnr = args.min_cnr + args.impl_margin
+        margin_db = cnr_db - effective_min_cnr
+        util.log_result("Link margin", "{:.2f} dB".format(margin_db))
+        res['margin_db'] = margin_db
 
     if (verbose and args.json):
         print(json.dumps(res, indent=4, ensure_ascii=True))
