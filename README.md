@@ -1,7 +1,7 @@
 # Link Budget
 
 ![Tests](https://github.com/igorauad/link_budget/workflows/Tests/badge.svg?branch=master)
-[![codecov](https://codecov.io/gh/igorauad/link_budget/branch/master/graph/badge.svg?token=72U3BI51OT)](https://codecov.io/gh/igorauad/link_budget)
+[![codecov](https://codecov.io/gh/igorauad/link-budget/branch/master/graph/badge.svg?token=72U3BI51OT)](https://codecov.io/gh/igorauad/link_budget)
 
 A Python-based link budget calculator for basic satellite communications and
 radar systems.
