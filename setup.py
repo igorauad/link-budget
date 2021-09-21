@@ -31,6 +31,6 @@ setup(name="link-budget",
       ],
       install_requires=[
           "numpy>=1.19.4",
-          "itur==0.3.1"
+          "itur>=0.3.2"
       ],
       python_requires='>=3')
