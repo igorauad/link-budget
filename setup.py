@@ -1,5 +1,6 @@
 import re
 import sys
+from pathlib import Path
 from setuptools import setup, find_packages
 
 if sys.version_info[0] < 3:
@@ -8,11 +9,7 @@ if sys.version_info[0] < 3:
 version = re.search(r'^__version__\s*=\s*"(.*)"',
                     open('linkbudget/cli.py').read(), re.M).group(1)
 
-long_description = """## link-budget
-
-A link budget calculator for satellite communications and radar systems.
-
-"""
+long_description = (Path(__file__).parent / "README.md").read_text()
 
 setup(name="link-budget",
       packages=find_packages(),
