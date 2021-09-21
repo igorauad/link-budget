@@ -4,27 +4,15 @@
 [![Docs](https://readthedocs.org/projects/link-budget/badge/?version=latest)](https://link-budget.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/igorauad/link-budget/branch/master/graph/badge.svg?token=72U3BI51OT)](https://codecov.io/gh/igorauad/link_budget)
 
-A Python-based link budget calculator for basic satellite communications and
-radar systems.
-
-<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-generate-toc again -->
-**Table of Contents**
-
-- [Link Budget](#link-budget)
-    - [Installation](#installation)
-    - [Running](#running)
-
-<!-- markdown-toc end -->
-
-
-## Installation
-
-Package `link-budget` provides the link budget calculator as a command-line
-tool. To build the package and install it, run:
+A Python-based link budget calculator for satellite communications and radar
+systems. To install it, run:
 
 ```
-make && make install
+pip install link-budget
 ```
+
+Please refer to the [documentation page](https://link-budget.readthedocs.io/)
+for further information.
 
 ## Running
 

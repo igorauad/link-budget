@@ -14,11 +14,11 @@ Installation
 ==================
 
 Package `link-budget` provides the link budget calculator as a command-line
-tool. To build the package and install it, run:
+tool. To install it, run:
 
 .. code-block:: bash
 
-   make && make install
+   pip install link-budget
 
 Basic Usage
 ======================
