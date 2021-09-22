@@ -24,6 +24,9 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 .
+    - name: Check formatting
+      run: |
+        yapf --diff --recursive --verbose linkbudget/
     - name: Test with pytest
       run: |
         pytest
