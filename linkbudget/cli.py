@@ -535,6 +535,11 @@ def analyze(args, verbose=False):
     P_rx_dbw = calc.rx_power(eirp_dbw, path_loss_db, rx_dish.gain_db,
                              total_atmospheric_loss_db, args.mispointing_loss)
 
+    # -------- Intermediate frequency (IF) Power --------
+    P_if_dbw = P_rx_dbw + args.lnb_gain
+    util.log_result("IF Power (LNB Output)",
+                    "{:.2f} dBm".format(util.dbw_to_dbm(P_if_dbw)))
+
     # -------- Noise Power --------
     N_dbw = calc.noise_power(
         T_syst_db,
@@ -586,7 +591,8 @@ def analyze(args, verbose=False):
         },
         'power_dbw': {
             'carrier': P_rx_dbw,
-            'noise': N_dbw
+            'noise': N_dbw,
+            'if': P_if_dbw
         },
         'psd_dbw_hz': {
             'carrier': sig_psd_dbw_hz,

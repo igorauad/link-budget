@@ -464,7 +464,8 @@ def rx_power(eirp_db,
     P_rx_dbw = eirp_db - path_loss_db - atm_loss_db + rx_ant_gain_db \
         - mispointing_db
 
-    util.log_result("Rx Power", "{:.2f} dBm".format(util.dbw_to_dbm(P_rx_dbw)))
+    util.log_result("Rx Power (LNB Input)",
+                    "{:.2f} dBm".format(util.dbw_to_dbm(P_rx_dbw)))
 
     return P_rx_dbw
 
