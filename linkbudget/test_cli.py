@@ -204,6 +204,56 @@ class TestCli(unittest.TestCase):
                                15.95 - (min_cnr + impl_margin),
                                places=2)
 
+    def test_ku_band_example_with_asi(self):
+        """Test Ku band scenario with adjacent satellite interference (ASI)
+
+        According to ITU-R BO.1213-1, the difference between the on-axis and
+        off-axis gain with a 45 cm dish of 0.65 aperture efficiency is roughly
+        3.3 dB when operating at 12.2 GHz. Hence, the ASI (or C/I) will
+        dominate the carrier to noise plus interference ratio (CNIR). In this
+        case, the C/(N+I) has to be less than the C/I of 3.3 dB.
+
+        """
+        base_args = [
+            '--eirp', '52', '--freq', '12.2e9', '--if-bw', '24e6',
+            '--rx-dish-size', '0.45', '--rx-dish-efficiency', '0.65',
+            '--atmospheric-loss', '0', '--antenna-noise-temp', '20',
+            '--lnb-noise-fig', '0.6', '--lnb-gain', '40', '--coax-length',
+            '110', '--rx-noise-fig', '10', '--sat-long', '-101', '--rx-long',
+            '-82.43', '--rx-lat', '29.71', '--min-cnr', '1'
+        ]
+        parser = cli.get_parser()
+        args = parser.parse_args(base_args)
+
+        # Without ASI, the C/(N+I) (equal to the C/N) is more than 16.4 dB
+        cli.validate(parser, args)
+        res = cli.analyze(args)
+        self.assertEqual(res['cnr_db'], res['cnir_db'])
+        self.assertGreater(res['cnir_db'], 16.4)
+        no_asi_cnir_db = res['cnir_db']
+        no_asi_capacity_bps = res['capacity_bps']
+        no_asi_margin_db = res['margin_db']
+
+        # With ASI from an adjacent satellite 2° away, the C/(N+I) drops
+        # drastically to a value close to the C/I
+        parser = cli.get_parser()
+        args = parser.parse_args(base_args +
+                                 ['--asi', '--asi-long-separation',
+                                  str(2)])
+        cli.validate(parser, args)
+        res = cli.analyze(args)
+        self.assertAlmostEqual(res['ci_db'], 3.35, places=1)
+        self.assertLess(res['cnir_db'], res['ci_db'])
+
+        # The C/N should remain the same as the C/(N+I) from the evaluation
+        # without ASI (where I=0):
+        self.assertEqual(res['cnr_db'], no_asi_cnir_db)
+
+        # The capacity and link margin should both consider the C/(N+I), not
+        # the C/N, so they should have reduced:
+        self.assertLess(res['capacity_bps'], no_asi_capacity_bps)
+        self.assertLess(res['margin_db'], no_asi_margin_db)
+
     def test_opts(self):
         """Test program options"""
         parser = cli.get_parser()

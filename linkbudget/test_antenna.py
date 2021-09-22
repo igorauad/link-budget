@@ -8,6 +8,7 @@ References:
 
 import unittest
 from . import antenna
+from .constants import SPEED_OF_LIGHT
 
 
 class TestAntenna(unittest.TestCase):
@@ -76,3 +77,55 @@ class TestAntenna(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             antenna.Antenna(freq=4e9, diameter=3.05)
+
+    def test_antenna_off_axis_gain(self):
+        """Test off-axis gain computation
+
+        Test against the co-polar examples from ITU-R BO.1213-1.
+
+        """
+
+        # Co-polar example 1 (Figure 1)
+        dish = antenna.Antenna(freq=11.7e9, diameter=0.6, efficiency=0.65)
+        self.assertAlmostEqual(dish.gain_db, 35.5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(0), dish.gain_db, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(2), 30, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(3), 23.1, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(4), 13.8, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(5), 11.5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(10), 4, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(20), -3.5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(30), -5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(80), 0, places=1)
+
+        # Co-polar example 2 (Figure 2)
+        dish = antenna.Antenna(freq=12.2e9, diameter=0.45, efficiency=0.65)
+        self.assertAlmostEqual(dish.gain_db, 33.3, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(0), dish.gain_db, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(2), 30, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(3), 25.8, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(4), 19.9, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(5), 12.4, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(10), 4, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(20), -3.5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(30), -5, places=1)
+        self.assertAlmostEqual(dish.off_axis_gain(80), 0, places=1)
+
+        # The off-axis angle must be >=0 and < 180
+        with self.assertRaises(ValueError):
+            dish.off_axis_gain(-1)
+
+        with self.assertRaises(ValueError):
+            dish.off_axis_gain(180)
+
+        with self.assertRaises(ValueError):
+            dish.off_axis_gain(181)
+
+        # The diameter/wavelength ratio must be >= 11
+        diameter = 0.45
+        wavelength = diameter * 10
+        freq = SPEED_OF_LIGHT / wavelength
+        dish = antenna.Antenna(freq=freq, diameter=diameter, efficiency=0.65)
+
+        with self.assertRaises(ValueError):
+            dish.off_axis_gain(0)

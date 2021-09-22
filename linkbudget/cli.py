@@ -134,6 +134,27 @@ def get_parser():
         'availability, the analysis is based on the atmospheric attenuation '
         'exceeded 0.1%% of the time.')
 
+    interf_p = parser.add_argument_group('Interference Options')
+    interf_p.add_argument(
+        '--asi',
+        action='store_true',
+        default=False,
+        help='Include adjacent satellite interference (ASI) in the link  '
+        'budget considering neighbor satellites with overlapping coverage, '
+        'frequency and polarization.')
+    interf_p.add_argument(
+        '--asi-eirp-ratio',
+        type=float,
+        default=1.0,
+        help='Ratio between the aggregate downlink EIRP from adjacent '
+        'satellites and the wanted signal\'s EIRP.')
+    interf_p.add_argument(
+        '--asi-long-separation',
+        type=float,
+        default=2.0,
+        help='Longitudinal orbit separation in degrees between the wanted '
+        'satellite and the adjacent satellite(s).')
+
     rx_p = parser.add_argument_group('Rx Options')
     rx_p.add_argument(
         '--antenna-noise-temp',
@@ -530,8 +551,17 @@ def analyze(args, verbose=False):
     g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
     cnr_db = calc.cnr(P_rx_dbw, N_dbw)
 
+    # -------- ASI and C/N+I --------
+    if (args.asi):
+        ci_db = calc.carrier_to_asi_ratio(rx_dish, args.asi_long_separation,
+                                          args.asi_eirp_ratio)
+        cnir_db = calc.cnir(cnr_db, ci_db)
+    else:
+        cnir_db = cnr_db
+        ci_db = None
+
     # -------- Capacity --------
-    capacity = calc.capacity(cnr_db, args.if_bw)
+    capacity = calc.capacity(cnir_db, args.if_bw)
 
     # Results
     res = {
@@ -565,13 +595,15 @@ def analyze(args, verbose=False):
         'rx_flux_dbw_m2': rx_flux_dbw_m2,
         'g_over_t_db': g_over_t_db,
         'cnr_db': cnr_db,
+        'ci_db': ci_db,
+        'cnir_db': cnir_db,
         'capacity_bps': capacity
     }
 
     # -------- Link Margin --------
     if (args.min_cnr is not None):
         effective_min_cnr = args.min_cnr + args.impl_margin
-        margin_db = cnr_db - effective_min_cnr
+        margin_db = cnir_db - effective_min_cnr
         util.log_result("Link margin", "{:.2f} dB".format(margin_db))
         res['margin_db'] = margin_db
 

@@ -551,3 +551,56 @@ def capacity(snr_db, bw):
     c = bw * log2(1 + snr)
     util.log_result("Capacity", util.format_rate(c))
     return c
+
+
+def carrier_to_asi_ratio(rx_dish, long_separation, asi_eirp_ratio):
+    """Compute the carrier to adjacent satellite interference (ASI) ratio
+
+    Args:
+        rx_dish (Antenna): Rx antenna object.
+        long_separation (float): Longitudinal separation in degrees between
+            the wanted satellite and the adjacent interferer(s).
+        asi_eirp_ratio (float): Ratio between the aggregate adjacent downlink
+            EIRP and the wanted signal's EIRP.
+
+    Returns:
+        (float): Carrier-to-ASI ratio in dB.
+
+    """
+    # Compute the difference between the on-axis (boresight) antenna gain and
+    # the off-axis gain at the specified longitudinal separation.
+    on_axis_gain = rx_dish.gain_db
+    off_axis_gain = rx_dish.off_axis_gain(long_separation)
+    delta_gain_db = on_axis_gain - off_axis_gain
+    # The adjacent signal is received with the off-axis gain. Hence, the
+    # difference between the wanted carrier and the adjacent signal power is
+    # delta_gain_db if the adjacent signal has the same EIRP as the wanted
+    # signal. Otherwise, if the aggregate adjacent downlink EIRP is greater
+    # than the EIRP from the wanted carrier (asi_eirp_ratio > 1), the
+    # carrier-to-asi ratio reduces. Similarly, in the opposite case, when
+    # asi_eirp_ratio < 1, the carrier-to-asi increases.
+    c_to_i_db = delta_gain_db - util.lin_to_db(asi_eirp_ratio)
+    util.log_result("ASI C/I ({}° separation)".format(long_separation),
+                    "{:.2f} dB".format(c_to_i_db))
+    return c_to_i_db
+
+
+def cnir(cnr, ci):
+    """Compute the carrier to noise plus interference ratio
+
+    Based on the reciprocal CNR formula in Eq. (4.42) from [3].
+
+    Args:
+        cnr (float): Carrier-to-noise ratio in dB.
+        ci (float): Carrier-to-interference ratio in dB.
+
+    Returns:
+        (float): Carrier to noise plus interference ratio C/(N+I) in dB.
+
+    """
+    cnr_lin = util.db_to_lin(cnr)
+    ci_lin = util.db_to_lin(ci)
+    cnir_lin = 1 / ((1 / cnr_lin) + (1 / ci_lin))
+    cnir_db = util.lin_to_db(cnir_lin)
+    util.log_result("C/(N+I)", "{:.2f} dB".format(cnir_db))
+    return cnir_db

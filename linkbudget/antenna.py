@@ -5,6 +5,7 @@ References:
 
 - [1] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 - [2] Couch, Leon W.. Digital & Analog Communication Systems.
+- [3] Recommendation ITU-R BO.1213-1.
 
 """
 import logging
@@ -141,7 +142,7 @@ class Antenna:
         """
         wavelength = util.wavelength(freq)
         gain = effective_aperture * 4 * pi / (wavelength**2)
-        return 10 * log10(gain)
+        return util.lin_to_db(gain)
 
     def _infer_eff_aperture(self, freq, gain_db):
         """Infer the effective aperture area from the antenna gain
@@ -209,3 +210,45 @@ class Antenna:
 
         """
         return sqrt((4 * effective_aperture) / (aperture_efficiency * pi))
+
+    def off_axis_gain(self, angle):
+        """Compute the off-axis co-polar antenna gain
+
+        Based on the co-polar antenna pattern formulae presented in Annex 1 of
+        Recommendation ITU-R BO.1213-1.
+
+        Args:
+            angle (float): Off-axis angle in degrees relative to the boresight.
+                Must be within the [0, 180°) range.
+
+        Returns:
+            (float) Off-axis antenna gain in dBi.
+
+        """
+        D_over_lambda = self.diameter / util.wavelength(self.freq)
+
+        if (D_over_lambda < 11):
+            raise ValueError(
+                "Off-axis model from ITU-R BO.1213-1 requires D/lambda >= 11")
+
+        Gmax = self.gain_db
+        phi_r = 95 / D_over_lambda
+        G1 = 29 - 25 * log10(phi_r)
+        phi_m = sqrt((Gmax - G1) / 0.0025) / D_over_lambda
+        phi_b = 10**(34 / 25)
+
+        if (angle >= 0 and angle < phi_m):
+            Gco = Gmax - 2.5e-3 * (D_over_lambda * angle)**2
+        elif (angle >= phi_m and angle < phi_r):
+            Gco = G1
+        elif (angle >= phi_r and angle < phi_b):
+            Gco = 29 - 25 * log10(angle)
+        elif (angle >= phi_b and angle < 70):
+            Gco = -5
+        elif (angle >= 70 and angle < 180):
+            Gco = 0
+        else:
+            raise ValueError(
+                "Off-axis angle must be within the [0, 180°) range.")
+
+        return Gco

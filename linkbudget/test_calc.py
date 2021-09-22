@@ -10,6 +10,7 @@ References:
 """
 
 import unittest
+from unittest.mock import Mock
 from math import pi
 
 from . import calc, util
@@ -209,3 +210,38 @@ class TestBudgetCalc(unittest.TestCase):
             calc.capacity(snr_db=0, bw=1e3),
             1e3  # expected capacity in bps
         )
+
+    def test_carrier_to_asi_ratio(self):
+        # 45 cm dish example from ITU-R BO.1213-1, with an on-axis gain of 33.3
+        # dB and an off-axis gain of roughly 30 dB at a 2° off-axis angle:
+        rx_dish = Mock()
+        rx_dish.gain_db = 33.3
+        rx_dish.off_axis_gain.return_value = 30
+        long_separation = 2
+        # If the adjacent satellites transmit with the same EIRP as the wanted
+        # satellite, the C/I becomes equal to the difference between the
+        # on-axis and off-axis antenna gains, which is of 3.3 dB:
+        c_to_i_db = calc.carrier_to_asi_ratio(rx_dish,
+                                              long_separation,
+                                              asi_eirp_ratio=1)
+        self.assertAlmostEqual(c_to_i_db, 3.3, places=1)
+
+        # If the adjacent satellites transmit with an aggregate EIRP twice as
+        # stronger as the wanted EIRP, the C/I reduces by 3 dB:
+        c_to_i_db = calc.carrier_to_asi_ratio(rx_dish,
+                                              long_separation,
+                                              asi_eirp_ratio=2.0)
+        self.assertAlmostEqual(c_to_i_db, 0.3, places=1)
+
+        # Lastly, in the opposite case, if the adjacent satellites collectively
+        # transmit with half the wanted EIRP, the C/I increases by 3 dB:
+        c_to_i_db = calc.carrier_to_asi_ratio(rx_dish,
+                                              long_separation,
+                                              asi_eirp_ratio=0.5)
+        self.assertAlmostEqual(c_to_i_db, 6.3, places=1)
+
+    def test_cnir(self):
+        # Example 4.10.b from [3]:
+        cnr_db = 17
+        ci_db = 24
+        self.assertAlmostEqual(calc.cnir(cnr_db, ci_db), 16.2, places=1)
