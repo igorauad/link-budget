@@ -208,8 +208,8 @@ class TestCli(unittest.TestCase):
         """Test Ku band scenario with adjacent satellite interference (ASI)
 
         According to ITU-R BO.1213-1, the difference between the on-axis and
-        off-axis gain with a 45 cm dish of 0.65 aperture efficiency is roughly
-        3.3 dB when operating at 12.2 GHz. Hence, the ASI (or C/I) will
+        off-axis gain at 2° with a 45 cm dish of 0.65 aperture efficiency is
+        roughly 3.3 dB when operating at 12.2 GHz. Hence, the ASI (or C/I) will
         dominate the carrier to noise plus interference ratio (CNIR). In this
         case, the C/(N+I) has to be less than the C/I of 3.3 dB.
 

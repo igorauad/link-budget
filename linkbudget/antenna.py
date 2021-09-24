@@ -5,7 +5,7 @@ References:
 
 - [1] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
 - [2] Couch, Leon W.. Digital & Analog Communication Systems.
-- [3] Recommendation ITU-R BO.1213-1.
+- [3] Recommendation ITU-R S.465-6.
 
 """
 import logging
@@ -214,8 +214,10 @@ class Antenna:
     def off_axis_gain(self, angle):
         """Compute the off-axis co-polar antenna gain
 
-        Based on the co-polar antenna pattern formulae presented in Annex 1 of
-        Recommendation ITU-R BO.1213-1.
+        Based on the reference earth station radiation pattern from ITU-R
+        S.465-6 (01/2010 version) and the APEREC026V01 standard from the ITU-R
+        antenna pattern list in
+        https://www.itu.int/en/ITU-R/software/Pages/ant-pattern.aspx.
 
         Args:
             angle (float): Off-axis angle in degrees relative to the boresight.
@@ -225,30 +227,53 @@ class Antenna:
             (float) Off-axis antenna gain in dBi.
 
         """
+        if self.freq < 2e9 or self.freq > 31e9:
+            raise ValueError(
+                "Off-axis gain model is only valid for frequency in [2, 31] GHz"
+            )
         D_over_lambda = self.diameter / util.wavelength(self.freq)
 
-        if (D_over_lambda < 11):
-            raise ValueError(
-                "Off-axis model from ITU-R BO.1213-1 requires D/lambda >= 11")
+        if (D_over_lambda < 33.3):
+            phi_min = 2.5  # See NOTE 5 in ITU-R S.465-6.
+        elif (D_over_lambda >= 50):
+            phi_min = max(1, 100 / D_over_lambda)
+        else:
+            phi_min = max(2, 114 * D_over_lambda**(-1.09))
 
         Gmax = self.gain_db
-        phi_r = 95 / D_over_lambda
-        G1 = 29 - 25 * log10(phi_r)
-        phi_m = sqrt((Gmax - G1) / 0.0025) / D_over_lambda
-        phi_b = 10**(34 / 25)
 
-        if (angle >= 0 and angle < phi_m):
-            Gco = Gmax - 2.5e-3 * (D_over_lambda * angle)**2
-        elif (angle >= phi_m and angle < phi_r):
-            Gco = G1
-        elif (angle >= phi_r and angle < phi_b):
-            Gco = 29 - 25 * log10(angle)
-        elif (angle >= phi_b and angle < 70):
-            Gco = -5
-        elif (angle >= 70 and angle < 180):
-            Gco = 0
+        if (angle >= 0 and angle < phi_min):
+            # Recommendation ITU-R S.465-6 does not define the radiation
+            # pattern for this angle range (corresponding to the main lobe).
+            # However, other models do. For instance, APEREC026V01 from
+            # https://www.itu.int/en/ITU-R/software/Pages/ant-pattern.aspx
+            # (also based on ITU-R S.465-6) defines the following gain:
+            G = Gmax - 2.5e-3 * (D_over_lambda * angle)**2
+
+            # The above is the same gain adopted in other recommendations, such
+            # as Rec. ITU-R BO.1213-1. However, APEREC026V01 defines various
+            # exceptions depending on the D/lambda metric, as follows:
+            if (D_over_lambda >= 33.3 and D_over_lambda <= 54.5):
+                phi_1 = 0.9 * 114 * (D_over_lambda**(-1.09))
+                if (angle >= phi_1):
+                    G = max(G, 32 - 25 * log10(angle))
+            elif (D_over_lambda > 54.5):
+                phi_r = 15.85 * (D_over_lambda**(-0.6))
+                G1 = 32 - 25 * log10(phi_r)
+                phi_m = (20 / D_over_lambda) * sqrt(Gmax - G1)
+                if (angle >= phi_m and angle <= phi_r):
+                    G = G1
+                elif (angle > phi_r):
+                    G = max(32 - 25 * log10(angle), -10)
+            # NOTE that APEREC026V01 does not use the phi_min limit at all if
+            # D/lambda > 54.5. However, we prioritize the model from ITU-R
+            # S.465-6, which uses and defines phi_min for all D/lambda.
+        elif (angle >= phi_min and angle < 48):
+            G = max(32 - 25 * log10(angle), -10)
+        elif (angle >= 48 and angle <= 180):
+            G = -10
         else:
             raise ValueError(
-                "Off-axis angle must be within the [0, 180°) range.")
+                "Off-axis angle {} is out of range.".format(angle))
 
-        return Gco
+        return G

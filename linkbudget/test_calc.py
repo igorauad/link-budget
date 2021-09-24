@@ -212,8 +212,11 @@ class TestBudgetCalc(unittest.TestCase):
         )
 
     def test_carrier_to_asi_ratio(self):
-        # 45 cm dish example from ITU-R BO.1213-1, with an on-axis gain of 33.3
-        # dB and an off-axis gain of roughly 30 dB at a 2° off-axis angle:
+        # Test the 45 cm dish example from Rec. ITU-R BO.1213-1, where the
+        # on-axis antenna gain is 33.3 dB and the off-axis gain is roughly 30
+        # dB at a 2° off-axis angle. Note the off-axis gain model adopted in
+        # the Antenna object comes from Rec. ITU-R S.465-6, but the main lobe
+        # (including the 2° angle) comes from APEREC026V01 and ITU-R BO.1213-1.
         rx_dish = Mock()
         rx_dish.gain_db = 33.3
         rx_dish.off_axis_gain.return_value = 30

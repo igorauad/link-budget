@@ -7,6 +7,9 @@ References:
 """
 
 import unittest
+
+import numpy as np
+
 from . import antenna
 from .constants import SPEED_OF_LIGHT
 
@@ -81,51 +84,65 @@ class TestAntenna(unittest.TestCase):
     def test_antenna_off_axis_gain(self):
         """Test off-axis gain computation
 
-        Test against the co-polar examples from ITU-R BO.1213-1.
+        Test a couple of arbitrary values, most of which can be computed
+        directly as "32 - 25*log10(angle)".
 
         """
+        # Antenna with diameter/wavelength = 23.4:
+        dish1 = antenna.Antenna(freq=11.7e9, diameter=0.6, efficiency=0.65)
+        self.assertAlmostEqual(dish1.gain_db, 35.5, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(0), dish1.gain_db, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(0.1), 35.4, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(1), 34.1, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(2), 30, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(3), 20.1, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(4), 16.9, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(5), 14.5, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(10), 7, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(20), -0.5, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(30), -4.92, places=1)
+        self.assertAlmostEqual(dish1.off_axis_gain(80), -10, places=1)
 
-        # Co-polar example 1 (Figure 1)
-        dish = antenna.Antenna(freq=11.7e9, diameter=0.6, efficiency=0.65)
-        self.assertAlmostEqual(dish.gain_db, 35.5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(0), dish.gain_db, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(2), 30, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(3), 23.1, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(4), 13.8, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(5), 11.5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(10), 4, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(20), -3.5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(30), -5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(80), 0, places=1)
+        # Antenna with diameter/wavelength = 46.8 (phi_1 = 1.55):
+        dish2 = antenna.Antenna(freq=11.7e9, diameter=1.2, efficiency=0.65)
+        self.assertAlmostEqual(dish2.gain_db, 41.5, places=1)
+        # The gains within the main lobe differ from the 0.6m antenna
+        self.assertAlmostEqual(dish2.off_axis_gain(0), dish2.gain_db, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(0.1), 41.4, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(1), 36, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(2), 24.47, places=1)
+        # In contrast, the sidelobe values follow the same expression:
+        self.assertAlmostEqual(dish2.off_axis_gain(3), 20.1, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(4), 16.9, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(5), 14.5, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(10), 7, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(20), -0.5, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(30), -4.92, places=1)
+        self.assertAlmostEqual(dish2.off_axis_gain(80), -10, places=1)
 
-        # Co-polar example 2 (Figure 2)
-        dish = antenna.Antenna(freq=12.2e9, diameter=0.45, efficiency=0.65)
-        self.assertAlmostEqual(dish.gain_db, 33.3, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(0), dish.gain_db, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(2), 30, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(3), 25.8, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(4), 19.9, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(5), 12.4, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(10), 4, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(20), -3.5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(30), -5, places=1)
-        self.assertAlmostEqual(dish.off_axis_gain(80), 0, places=1)
+        # Ensure the antenna gain is monotonically decreasing
+        for dish in [dish1, dish2]:
+            last_gain = np.inf
+            for angle in np.arange(0, 180, 1e-2):
+                gain = dish.off_axis_gain(angle)
+                self.assertGreaterEqual(last_gain, gain,
+                                        "Failed for angle {}".format(angle))
+                last_gain = gain
 
-        # The off-axis angle must be >=0 and < 180
+        # The off-axis angle must be >=0 and <= 180°:
         with self.assertRaises(ValueError):
             dish.off_axis_gain(-1)
 
         with self.assertRaises(ValueError):
-            dish.off_axis_gain(180)
+            dish.off_axis_gain(180.01)
 
+        # The model is valid for frequencies within [2, 31] GHz:
+        freq = 1.9e9
+        dish = antenna.Antenna(freq=freq, diameter=0.45, efficiency=0.65)
         with self.assertRaises(ValueError):
-            dish.off_axis_gain(181)
+            dish.off_axis_gain(0)
 
-        # The diameter/wavelength ratio must be >= 11
-        diameter = 0.45
-        wavelength = diameter * 10
-        freq = SPEED_OF_LIGHT / wavelength
-        dish = antenna.Antenna(freq=freq, diameter=diameter, efficiency=0.65)
-
+        freq = 32.1e9
+        dish = antenna.Antenna(freq=freq, diameter=0.45, efficiency=0.65)
         with self.assertRaises(ValueError):
             dish.off_axis_gain(0)

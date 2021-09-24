@@ -6,7 +6,7 @@ import argparse
 from . import calc, constants, propagation, pointing, util
 from .antenna import Antenna
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 
 def get_parser():
