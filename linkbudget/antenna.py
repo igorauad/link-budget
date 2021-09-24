@@ -229,8 +229,7 @@ class Antenna:
         """
         if self.freq < 2e9 or self.freq > 31e9:
             raise ValueError(
-                "Off-axis gain model is only valid for frequency in [2, 31] GHz"
-            )
+                "Off-axis gain model only valid for frequency in [2, 31] GHz")
         D_over_lambda = self.diameter / util.wavelength(self.freq)
 
         if (D_over_lambda < 33.3):

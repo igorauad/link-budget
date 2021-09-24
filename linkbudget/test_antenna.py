@@ -11,7 +11,6 @@ import unittest
 import numpy as np
 
 from . import antenna
-from .constants import SPEED_OF_LIGHT
 
 
 class TestAntenna(unittest.TestCase):
