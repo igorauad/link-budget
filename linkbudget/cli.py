@@ -186,6 +186,13 @@ def get_parser():
         type=float,
         help='Length of the coaxial transmission line between the LNB and the '
         'receiver in ft.')
+    rx_p.add_argument(
+        '--lna-feed-loss',
+        type=float,
+        default=0,
+        help='Loss in dB of the passive feed (typically waveguide) connecting '
+        'the antenna to the LNA. Applicable when a discrete LNB is used '
+        'instead of an integrated LNBF.')
 
     fdma_group = parser.add_argument_group(
         title='FDMA Carrier Power Options',
@@ -495,7 +502,7 @@ def analyze(args, verbose=False):
 
     util.log_result("LNB noise figure", "{:.2f} dB".format(lnb_noise_fig))
 
-    noise_fig_db = calc.total_noise_figure(
+    noise_fig_db = calc.cascaded_noise_figure(
         [lnb_noise_fig, coax_noise_fig_db, args.rx_noise_fig],
         [args.lnb_gain, -coax_loss_db])
 
@@ -514,11 +521,9 @@ def analyze(args, verbose=False):
     else:
         antenna_noise_temp = args.antenna_noise_temp
 
-    util.log_result("Antenna noise temperature",
-                    "{:.2f} K".format(antenna_noise_temp))
-
     T_syst = calc.rx_sys_noise_temp(antenna_noise_temp,
-                                    effective_input_noise_temp)
+                                    effective_input_noise_temp,
+                                    args.lna_feed_loss)
     T_syst_db = util.lin_to_db(T_syst)  # in dBK (for T_syst in K)
 
     # -------- Received Power and Flux Density --------
@@ -533,7 +538,8 @@ def analyze(args, verbose=False):
         rx_flux_dbw_m2 = calc.rx_flux_density(eirp_dbw, slant_range_m,
                                               one_way_atmospheric_loss_db)
     P_rx_dbw = calc.rx_power(eirp_dbw, path_loss_db, rx_dish.gain_db,
-                             total_atmospheric_loss_db, args.mispointing_loss)
+                             total_atmospheric_loss_db, args.mispointing_loss,
+                             args.lna_feed_loss)
 
     # -------- Intermediate frequency (IF) Power --------
     P_if_dbw = P_rx_dbw + args.lnb_gain

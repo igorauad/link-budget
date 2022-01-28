@@ -3,9 +3,10 @@ A collection of link budget and other RF calculations.
 
 References:
 
-- [1] Couch, Leon W.. Digital & Analog Communication Systems.
-- [2] Lindgren, M. (2015). A 1296 MHz Earth–Moon–Earth Communication System.
-- [3] Timothy Pratt, Jeremy E. Allnutt, "Satellite Communications", 3rd Ed.
+- [1] L. W. Couch, "Digital & Analog Communication Systems," 8th Ed., 2013.
+- [2] M. Lindgren, "A 1296 MHz Earth–Moon–Earth Communication System," 2015.
+- [3] T. Pratt and J. E. Allnutt, "Satellite Communications," 3rd Ed., 2019.
+- [4] D. M. Pozar, "Microwave Engineering," 4th Ed., 2012.
 
 """
 from math import log10, pi, log2
@@ -203,6 +204,155 @@ def radar_obj_gain(freq, rcs):
     return G_obj_db
 
 
+def passive_attn_in_noise_temp(attn_db, T):
+    """Input noise temperature of a passive two-port attenuator
+
+    Compute the equivalent input noise temperature of a passive two-port lossy
+    component, such as a transmission line or waveguide.
+
+    When considering the equivalent **input** noise temperature, the model is
+    as follows:
+
+    .. code-block::
+
+        Signal --> Sum --> Noiseless Passive Component --> Signal + Noise Out
+                    ^
+                    |
+                    |
+              Noise Source (Resistor at Temperature Te)
+
+    The noise source is at the input of the passive two-port element, and the
+    latter is assumed noiseless but lossy with gain G or attenuation L. The
+    noise produced by the hypothetical noise source, when amplified by G (or
+    attenuated by L), yields the same noise power on the component's output as
+    the noisy (but otherwise equivalent) component produces by itself.
+
+    The output noise power produced by the noisy passive two-port component is
+    modeled as equal to :math:`G k T_e B`, namely the input noise power
+    :math:`k T_e B` amplified by gain G. Finally, :math:`T_e` is the physical
+    temperature of a hypothetical resistor used to represent the noise source.
+    The resistor produces noise power :math:`k T_e B` over bandwidth B, and
+    :math:`T_e` is called the equivalent input noise temperature, given by:
+
+    .. math::
+
+        T_e = (L - 1) T,
+
+    where :math:`T` is the physical temperature of the two-port component, and
+    `L` is the component's attenuation (or loss) in absolute units. See
+    Equation (8-31a) in [1] or Equation (10.15) in [4].
+
+    Args:
+        attn_db (float): Attenuation in dB.
+        T (float): Physical temperature of the attenuator.
+
+    Return:
+        float: The equivalent input noise temperature of the passive two-port
+        attenuator.
+
+    """
+    attn = util.db_to_lin(attn_db)
+    return (attn - 1) * T
+
+
+def passive_attn_out_noise_temp(attn_db, T):
+    """Output noise temperature of a passive two-port attenuator
+
+    Compute the equivalent output noise temperature of a passive two-port lossy
+    component, such as a transmission line or waveguide.
+
+    When considering the equivalent **output** noise temperature, the model is
+    as follows:
+
+    .. code-block::
+
+        Signal --> Noiseless Passive Component --> Sum --> Signal + Noise Out
+                                                    ^
+                                                    |
+                                                    |
+                              Noise Source (Resistor at Temperature Teo)
+
+    The noise source is at the output of the passive two-port element, and the
+    latter is assumed noiseless but lossy with gain G or attenuation L. The
+    hypothetical noise source produces the same noise power as the noisy (but
+    otherwise equivalent) two-port component produces by itself.
+
+    The output noise power produced by the noisy passive two-port component is
+    modeled as equal to :math:`k T_{eo} B`, and :math:`T_{eo}` is called the
+    equivalent output noise temperature. Finally, :math:`T_{eo}` is interpreted
+    as the physical temperature of a hypothetical resistor representing the
+    noise source, and is given by:
+
+    .. math::
+
+        T_{eo} = (1 - G) T,
+
+    where :math:`T` is the physical temperature of the two-port component, and
+    `G` is the component's gain in absolute units (less than unit because the
+    component is lossy). See Equation (4.21) in [3].
+
+    Note:
+        The equivalent output noise temperature :math:`T_{eo}` is equal to the
+        equivalent input noise temperature :math:`T_e` multiplied by the gain G
+        of the lossy two-port component or network.
+
+    Args:
+        attn_db (float): Attenuation in dB.
+        T (float): Physical temperature of the attenuator.
+
+    Return:
+        float: The equivalent output noise temperature of the passive two-port
+        attenuator.
+
+    """
+    gain = 1 / util.db_to_lin(attn_db)
+    return (1 - gain) * T
+
+
+def passive_attn_noise_fig(attn_db, T):
+    """Noise figure of a passive two-port attenuator
+
+    Compute the noise figure of a passive two-port lossy component, such as a
+    transmission line or waveguide.
+
+    The equivalent input noise temperature of such a component is equal to:
+
+    .. math::
+
+        T_e = (L - 1) T,
+
+    where :math:`T` is the physical temperature of the component, and `L`
+    represents its attenuation (or loss) in absolute units.
+
+    Hence, the noise factor referenced to the standard temperature T0=290 K is
+    equal to:
+
+    .. math::
+
+        F = 1 + \\frac{T_e}{T0} = 1 + \\frac{T}{T0}(L - 1).
+
+    See Equation 8.32a in [1] or Equation 10.16 in [4].
+
+    Note:
+        The noise factor approaches unit if the component's physical
+        temperature :math:`T` is close to 290 K. This is typically the case in
+        environments inhabitable by humans. In this scenario, the noise figure
+        (in dB) is approximately equal to the device's loss in dB. For
+        instance, a waveguide or transmission line with 2 dB loss would have a
+        noise figure close to 2 dB.
+
+    Args:
+        attn_db (float): Attenuation in dB.
+        T (float): Physical temperature of the attenuator.
+
+    Returns:
+        float: The noise figure of the passive two-port attenuator.
+
+    """
+    noise_temp = passive_attn_in_noise_temp(attn_db, T)
+    return noise_temp_to_noise_fig(noise_temp)
+
+
 def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
     """Compute the antenna noise temperature based on the atmosphere attenuation
 
@@ -222,14 +372,11 @@ def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
         considered when analyzing clear sky. The rationale is to be confirmed.
 
     """
-
-    # Sky noise temperature (Eq. 4.30)
-    T_sky = T_medium * (1 - (10**(-attn_db / 10)))
-
+    # Sky's equivalent output noise temperature, assuming the sky behaves as a
+    # passive two-port attenuator (see Eq. 4.30 in [3]):
+    T_sky = passive_attn_out_noise_temp(attn_db, T_medium)
     # Antenna noise temperature (Eq. 4.31)
-    T_a = coupling_eff * T_sky
-
-    return T_a
+    return coupling_eff * T_sky
 
 
 def coax_loss_nf(length_ft, Tl=T0):
@@ -245,33 +392,27 @@ def coax_loss_nf(length_ft, Tl=T0):
     """
     loss_db_per_ft = 8 / 100
     loss_db = length_ft * loss_db_per_ft
-    loss = util.db_to_lin(loss_db)
-
-    # The noise figure (dB) of a coaxial line is equal to the loss in dB if the
-    # physical temperature of the line is equal to T0=290 K. See Equation 8.32a
-    # on Example 8-2 in [1]. More generally, any passive two-port element (or
-    # attenuator) at room temperature will have this property (noise figure =
-    # attenuation in dB), see Equation 4.22 in [2].
-    noise_factor = 1 + (Tl / T0) * (loss - 1)
-    noise_fig = 10 * log10(noise_factor)
-
+    noise_fig = passive_attn_noise_fig(loss_db, Tl)
     util.log_result("Coax loss", "{:.2f} dB".format(loss_db))
     util.log_result("Coax noise figure", "{:.2f} dB".format(noise_fig))
-
     return loss_db, noise_fig
 
 
-def total_noise_figure(nfs, gains):
-    """Calculate the overall noise figure of the receiver system
+def cascaded_noise_figure(nfs, gains):
+    """Compute the overall noise figure of cascaded linear devices
+
+    Based on Equation 8-34 from [1].
 
     Args:
-        nfs   : List with the noise figures (in dB) corresponding to the
-                cascaded linear devices.
+        nfs : List with the noise figures (in dB) corresponding to each
+            of the devices in order from input to output.
         gains : List with the gains (also in dB) of the cascaded linear
-                devices, in the same order as given for "nfs".
+            devices, excluding the last, in the same order as given for the
+            noise figures.
 
-    Note: The list of gains should not include the gain of the last device in
-    the chain, as it is irrelevant for the overall noise figure computation.
+    Note:
+        The list of gains should not include the gain of the last device in the
+        chain because this gain is irrelevant for the computation.
 
     Returns:
         The overall noise figure in dB.
@@ -284,7 +425,6 @@ def total_noise_figure(nfs, gains):
     if (len(nfs) == 1):
         return nfs[0]
 
-    # Implement Equation 8-34 from [1]:
     F = util.db_to_lin(nfs[0])
     G_prod = 1
     for i, nf in enumerate(nfs[1:]):
@@ -295,6 +435,42 @@ def total_noise_figure(nfs, gains):
     F_db = 10 * log10(F)
     util.log_result("Rx noise figure", "{:.2f} dB".format(F_db))
     return F_db
+
+
+def cascaded_input_noise_temp(temps, gains):
+    """Equivalent input noise temperature of cascaded linear devices
+
+    Computes the overall equivalent input noise temperature for cascaded linear
+    devices according to Equation 8-37 from [1].
+
+    Args:
+        temps : List with the individual input noise temperatures (in K)
+            corresponding to each of the devices in order from input to output.
+        gains : List with the gains (in dB) of the cascaded linear devices,
+            excluding the last, in the same order as given for the input noise
+            temperatures.
+
+    Note:
+        The list of gains should not include the gain of the last device in the
+        chain because this gain is irrelevant for the computation.
+
+    Returns:
+        The overall input noise temperature in K.
+
+    """
+    assert (len(temps) > 0)
+    assert (len(gains) == len(temps) - 1)
+
+    if (len(temps) == 1):
+        return temps[0]
+
+    Te = temps[0]
+    G_prod = 1
+    for i, temp in enumerate(temps[1:]):
+        G_prod *= util.db_to_lin(gains[i])
+        Te += temp / G_prod
+
+    return Te
 
 
 def noise_fig_to_noise_temp(nf):
@@ -335,16 +511,16 @@ def noise_temp_to_noise_fig(Te):
     return 10 * log10(nf_abs)
 
 
-def rx_sys_noise_temp(Tar, Te):
+def rx_sys_noise_temp(Tar, Te, feed_loss_db=0, feed_temp=T0):
     """Compute the receiver system noise temperature
 
-    The receiver noise temperature is the sum of the effective input-noise
-    temperature (Te) of the entire receiver seen as a blackbox and the antenna
-    noise temperature (Tar). The Te term represents the noise introduced by the
-    cascaded linear components (e.g., the LNB, the coax line, and the radio
-    interface) of the receiver. The Tar component, in turn, is the noise
-    captured by the antenna due to the received cosmic noise and Earth
-    blackbody radiation. The simplified model is as follows:
+    The receiver system noise temperature is equal to the effective input noise
+    temperature (Te) of the entire receiver (seen as a blackbox) added to the
+    antenna noise temperature (Tar). The Te term represents the noise
+    introduced by the cascaded linear components of the receiver (e.g., LNB,
+    coax line, and radio interface). Meanwhile, The Tar component represents
+    the cosmic noise and Earth blackbody radiation captured by the antenna.
+    Hence, the simplified model is as follows:
 
     .. code-block::
 
@@ -354,34 +530,84 @@ def rx_sys_noise_temp(Tar, Te):
                                   |
                            Receiver Noise (Te)
 
-    Note that this is peculiar because the antenna is not treated as another
-    cascaded device within the receiver. Instead, the antenna adds to the
-    cascaded devices. See Figure 8-24 in [1].
+    Note the antenna is not treated as another cascaded device within the
+    receiver. Instead, the antenna noise adds to the equivalent input noise of
+    the cascaded devices, see Figure 8-24 in [1]. This is because the
+    observation point is at the input to the receiver system. As explained in
+    [2], around equation 4.39, this is a convenient choice in terms of where
+    the effective input noise temperature is observed.
 
-    As explained in [2], around equation 4.39, this is just a convenient choice
-    in terms of where the effective input-noise temperature is observed. Note
-    that an equivalent (or effective) input noise temperature represents the
-    thermodynamic temperature of a noisy resistor, connected to the input of a
-    noiseless two-port element, which gives the same output noise power as the
-    noisy but otherwise equivalent two-port element, with an ideal noiseless
-    source at its input [2]. Hence, if we group the entire receiver into a
-    single equivalent two-port element, the Te term represents the noise
-    generated by the entire receiver, which has power k*Te*B. When combined to
-    the noise collected by the antenna, one obtaines the total system noise
-    temperature.
+    By definition, an equivalent (or effective) input noise temperature
+    represents the thermodynamic temperature of a noisy resistor connected to
+    the input of a noiseless two-port element, which gives the same output
+    noise power as the noisy (but otherwise equivalent) two-port element with
+    an ideal noiseless source at its input [2]. Hence, if we group the entire
+    receiver into a single equivalent two-port element, the Te term represents
+    the noise generated by the entire receiver, which has power k*Te*B. When
+    combined to the noise collected by the antenna, the result becomes the
+    total system noise temperature.
+
+    Since the observation point is at the Rx input, the carrier-to-noise ratio
+    (CNR) becomes the carrier power captured by the antenna (i.e., at the Rx
+    input) divided by k*Te*B. If the observation point were instead at the
+    detector's input, both the carrier and noise powers would be multiplied by
+    the combined gain of the cascaded linear components. Hence, the CNR would
+    remain the same (see Equation 4.15 in [3]), which confirms the convenience
+    of using the receiver's input as the reference point.
+
+    Besides, note the input to the receiver typically represents the input to
+    the LNA, which is assumed to be directly connected to the antenna. However,
+    in practice, there is a lossy passive two-port element (waveguide or
+    transmission line) connecting the antenna to the LNA. When the loss in this
+    segment is non-negligible, the model becomes:
+
+    .. code-block::
+
+        Antenna (Tar) --> Waveguide/Line --> Sum --> Noiseless Rx --> Detector
+                                              ^
+                                              |
+                                              |
+                                       Receiver Noise (Te)
+
+    In this case, the lossy waveguide or transmission line attenuates the
+    antenna noise, but also generates noise of its own. This function takes
+    both effects into account when a non-zero feed loss is specified.
 
     Args:
-        Tar : Antenna noise temperature in K.
-        Te  : Effective input-noise temperature in K.
+        Tar (float): Antenna noise temperature in K.
+        Te (float): Effective input-noise temperature in K.
+        feed_loss_db (float): Loss (in dB) over the passive two-port feed
+            connecting the antenna to the LNA.
+        feed_temp (float): Physical temperature of the feed.
 
     Returns:
         Receiver system noise temperature in K.
 
     """
 
+    util.log_result("Antenna noise temperature", "{:.2f} K".format(Tar))
+
+    if (feed_loss_db > 0):
+        # Equivalent output noise temperature of the feed
+        T_feed = passive_attn_out_noise_temp(feed_loss_db, feed_temp)
+        # Antenna noise temperature at the feed's output, i.e., after
+        # attenuation (see Example 4.4 in [3]):
+        attn = util.db_to_lin(feed_loss_db)
+        Tar = Tar / attn
+        # Total noise (antenna + feed) into the receiver:
+        Tin = Tar + T_feed
+        util.log_result("Lossy feed noise temperature",
+                        "{:.2f} K".format(T_feed))
+        util.log_result("Antenna/feed noise temperature",
+                        "{:.2f} K".format(Tin))
+    else:
+        Tin = Tar
+
     # Equation 8-41 from [1], or 4.39 from [2]:
-    Tsyst = Tar + Te
-    util.log_result("System noise temperature", "{:.2f} K".format(Tsyst))
+    Tsyst = Tin + Te
+    util.log_result(
+        "System noise temperature",
+        "{:.2f} K ({:.2f} dBK)".format(Tsyst, util.lin_to_db(Tsyst)))
     return Tsyst
 
 
@@ -447,7 +673,8 @@ def rx_power(eirp_db,
              path_loss_db,
              rx_ant_gain_db,
              atm_loss_db=0,
-             mispointing_db=0):
+             mispointing_db=0,
+             feed_loss_db=0):
     """Compute the received carrier power in dBW
 
     Args:
@@ -456,13 +683,14 @@ def rx_power(eirp_db,
         rx_ant_gain_db : Receiver antenna gain in dB.
         atm_loss_db    : Total atmospheric loss in dB.
         mispointing_db : Antenna mispointing loss in dB.
+        feed_loss_db   : Antenna-to-LNA feed loss in dB.
 
     Returns:
         Received power in dBW.
 
     """
     P_rx_dbw = eirp_db - path_loss_db - atm_loss_db + rx_ant_gain_db \
-        - mispointing_db
+        - mispointing_db - feed_loss_db
 
     util.log_result("Rx Power (LNB Input)",
                     "{:.2f} dBm".format(util.dbw_to_dbm(P_rx_dbw)))

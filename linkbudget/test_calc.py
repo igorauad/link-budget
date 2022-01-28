@@ -152,20 +152,39 @@ class TestBudgetCalc(unittest.TestCase):
         self.assertEqual(nf, 8.8)
         self.assertEqual(loss_db, 8.8)
 
-    def test_total_nf(self):
+    def test_cascaded_nf(self):
         # Study aid example SA8-1 from [1]:
         nfs = [0.6, 8.8, 10]
         gains = [40, -8.8]
-        total_nf = calc.total_noise_figure(nfs, gains)
+        total_nf = calc.cascaded_noise_figure(nfs, gains)
         self.assertAlmostEqual(total_nf, 0.63, places=2)
 
         # If a single noise figure is provided, make sure the total noise
         # figure is equivalent to it.
         nf = 0.6
-        total_nf = calc.total_noise_figure(nfs=[nf], gains=[])
+        total_nf = calc.cascaded_noise_figure(nfs=[nf], gains=[])
         self.assertEqual(total_nf, nf)
 
-    def test_noise_fig_temp_conv(self):
+    def test_cascaded_input_noise_temp(self):
+        # Example 4.3 from [3]:
+        Tin = 25  # input from antenna
+        Trf = 50  # RF amplifier
+        Tm = 500  # mixer
+        Tif = 1000  # IF amplifier
+        Grf = 23  # RF amplifier gain
+        Gm = -10  # Mixer gain (the mixer is lossy)
+        temps = [Trf, Tm, Tif]
+        gains = [Grf, Gm]
+        Te = calc.cascaded_input_noise_temp(temps, gains)
+        self.assertAlmostEqual(Te, 127.625 - Tin, places=3)
+
+        # If a single input noise temperature is provided, the overall input
+        # noise temperature must equivalent to it.
+        temp = 50
+        total_temp = calc.cascaded_input_noise_temp(temps=[temp], gains=[])
+        self.assertEqual(total_temp, temp)
+
+    def test_noise_fig_to_noise_temp(self):
         # Table 4.4 from [3]:
         noise_temp = [0, 20, 40]
         noise_fig = [0, 0.29, 0.56]
@@ -176,11 +195,31 @@ class TestBudgetCalc(unittest.TestCase):
             # Noise temperature to noise figure:
             self.assertAlmostEqual(calc.noise_temp_to_noise_fig(Te), nf)
 
-    def test_rx_sys_noise_temp(self):
+    def test_rx_sys_noise_temp_lossless_feed(self):
         # Study aid example SA8-1 from [1]:
         Tsys = calc.rx_sys_noise_temp(Tar=20, Te=43.18)
         Tsys_dbk = util.lin_to_db(Tsys)
         self.assertAlmostEqual(Tsys_dbk, 18.01, places=2)
+
+        # Example 4.3 from [3] for LNA gain of 50 dB and mixer gain of -10 dB:
+        temps = [50, 500, 1000]
+        gains = [50, -10]
+        Tar = 25  # antenna output noise temperature
+        Te = calc.cascaded_input_noise_temp(temps, gains)
+        Tsys2 = calc.rx_sys_noise_temp(Tar, Te)
+        self.assertAlmostEqual(Tsys2, 75.1, places=1)
+
+    def test_rx_sys_noise_temp_lossy_feed(self):
+        # Example 4.4 from [3]:
+        temps = [50, 500, 1000]
+        gains = [50, -10]
+        waveguide_loss_db = 2
+        waveguide_temp = 300
+        Tar = 25  # antenna output noise temperature
+        Te = calc.cascaded_input_noise_temp(temps, gains)
+        Tsys = calc.rx_sys_noise_temp(Tar, Te, waveguide_loss_db,
+                                      waveguide_temp)
+        self.assertAlmostEqual(Tsys, 176.6, places=1)
 
     def test_spectral_density(self):
         # Double-sided power spectral density of the white noise produced by a
