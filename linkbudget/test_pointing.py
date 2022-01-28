@@ -3,6 +3,7 @@ from . import pointing
 
 
 class TestPointing(unittest.TestCase):
+
     def test_look_angles(self):
         """Test Rx stations at all four quadrants (SW, NW, NE, SE)
 

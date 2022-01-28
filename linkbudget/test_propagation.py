@@ -71,6 +71,7 @@ p618_att_tot_table = """
 
 
 class TestPropagation(unittest.TestCase):
+
     def test_rain_attenuation(self):
         # Test the examples from the ITU-R validation spreadsheet entitled
         # "Validation examples for Study Group 3 Earth-Space propagation

@@ -14,6 +14,7 @@ from . import antenna
 
 
 class TestAntenna(unittest.TestCase):
+
     def test_dish_gain(self):
         """Test dish gain calculation"""
         # Example 8-5 in [1]:

@@ -35,6 +35,7 @@ class Antenna:
         gain_db : Antenna gain in dBi.
 
     """
+
     def __init__(self,
                  freq,
                  gain=None,

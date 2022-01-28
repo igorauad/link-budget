@@ -4,6 +4,7 @@ from . import util
 
 
 class TestUtil(unittest.TestCase):
+
     def test_format_rate(self):
         self.assertEqual(util.format_rate(1e-1), "0.10 bps")
         self.assertEqual(util.format_rate(1e0), "1.00 bps")

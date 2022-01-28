@@ -17,6 +17,7 @@ from . import calc, util
 
 
 class TestBudgetCalc(unittest.TestCase):
+
     def test_eirp(self):
         tx_power_dbw = 10
         tx_dish_gain_db = 17

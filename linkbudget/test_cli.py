@@ -18,6 +18,7 @@ from . import cli
 
 
 class TestCli(unittest.TestCase):
+
     def setUp(self):
         # Arguments to configure Example SA8-1 from [1]:
         self.base_args = [
