@@ -185,6 +185,17 @@ class TestBudgetCalc(unittest.TestCase):
         total_temp = calc.cascaded_input_noise_temp(temps=[temp], gains=[])
         self.assertEqual(total_temp, temp)
 
+    def test_cascaded_nf_noise_temp_match(self):
+        # The cascaded input noise temperature can either be obtained directly
+        # or by first computing the cascaded noise figure, then converting the
+        # noise figure to a noise temperature. The two results must match.
+        temps = [50, 500, 1000]
+        gains = [23, -10]
+        Te = calc.cascaded_input_noise_temp(temps, gains)
+        nfs = [calc.noise_temp_to_noise_fig(x) for x in temps]
+        nf = calc.cascaded_noise_figure(nfs, gains)
+        self.assertAlmostEqual(Te, calc.noise_fig_to_noise_temp(nf))
+
     def test_noise_fig_to_noise_temp(self):
         # Table 4.4 from [3]:
         noise_temp = [0, 20, 40]
