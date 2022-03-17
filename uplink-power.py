@@ -55,7 +55,22 @@ def parse_args():
                    required=True,
                    type=float,
                    help='Target UPC dynamic range in dB.')
-    return p.parse_args()
+    p.add_argument(
+        '--ul-contour',
+        type=float,
+        default=0.0,
+        help='Contour line where the UL station is located. A negative value '
+        'in dB representing the off-axis gain dropoff of the satellite '
+        'antenna in the direction of the UL station relative to on-axis '
+        '(boresight) gain. Taken into account only when option '
+        '--tp-noise-temp is provided instead of --tp-gt.')
+
+    args = p.parse_args()
+
+    if (args.ul_contour > 0):
+        p.error("--ul-contour must be a negative value in dB.")
+
+    return args
 
 
 def configure_logging():
@@ -118,9 +133,10 @@ def main():
                               diameter=dish_size,
                               efficiency=0.68,
                               label="Sat Ant")
-        calc.g_over_t(sat_antenna.gain_db, tp_noise_temp_db)
+        sat_ant_gain_off_axis = sat_antenna.gain_db + args.ul_contour
+        calc.g_over_t(sat_ant_gain_off_axis, tp_noise_temp_db)
         Pt_dbw = P_rx_dbw + loss_db - ul_antenna.gain_db - \
-            sat_antenna.gain_db + args.upc_range
+            sat_ant_gain_off_axis + args.upc_range
         util.log_result(
             "Required Tx Power",
             "{:.1f} dBW ({:.2f} W)".format(Pt_dbw, util.db_to_lin(Pt_dbw)))
