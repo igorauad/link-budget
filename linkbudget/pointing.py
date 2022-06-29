@@ -10,27 +10,26 @@ References:
 """
 from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
     radians
+
 import numpy as np
+
 from . import util
-from .constants import GEOSYNC_ORBIT
 
 
-def _look_angles_ellipsoidal(sat_long,
-                             rx_long,
-                             rx_lat,
-                             rx_height=0,
-                             sat_alt=GEOSYNC_ORBIT):
+def _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt, rx_long, rx_lat,
+                             rx_height):
     """Calculate look angles (elevation, azimuth) and slant range
 
     Computation using the rigorous ellipsoidal approach presented in [1].
 
     Args:
-        sat_long   : Subsatellite point's geodetic longitude
-        rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Geodetic latitude of the receiver station in degrees
-        rx_height  : Orthometric height (height above sea-evel)
-        sat_alt    : Satellite/reflector altitude in meters (default to
-                     the geosynchronous altitude)
+        sat_long   : Subsatellite point's longitude in degrees.
+        sat_lat    : Subsatellite point's geodetic latitude in degrees.
+        sat_alt    : Satellite/reflector altitude in meters above the reference
+                     ellipsoid.
+        rx_long    : Longitude of the receiver station in degrees.
+        rx_lat     : Geodetic latitude of the receiver station in degrees.
+        rx_height  : Orthometric height (height above sea-level) in meters.
 
     Returns:
         Tuple with elevation (degrees), azimuth (degrees) and slant range (m).
@@ -69,8 +68,8 @@ def _look_angles_ellipsoidal(sat_long,
     z_p = (N * (1 - e_sq) + h) * sin(rx_lat)
 
     # Rectangular coordinates of the satellite. See Fig. 5 in [1]:
-    x_s = r * cos(sat_long)
-    y_s = r * sin(sat_long)
+    x_s = r * cos(sat_long) * cos(sat_lat)
+    y_s = r * sin(sat_long) * cos(sat_lat)
     z_s = 0
 
     # Step 3: SATELLITE COMPONENTS ON LOCAL (x, y, z) COORDINATES
@@ -111,17 +110,17 @@ def _look_angles_ellipsoidal(sat_long,
     return elevation_degrees, azimuth_degrees, slant_range
 
 
-def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=GEOSYNC_ORBIT):
+def _look_angles_spherical(sat_long, sat_alt, rx_long, rx_lat):
     """Calculate look angles (elevation, azimuth) and slant range
 
     Computation using the spherical approximation discussed in [1].
 
     Args:
-        sat_long   : Subsatellite point's geodetic longitude
-        rx_long    : Longitude of the receiver station in degrees
-        rx_lat     : Geodetic latitude of the receiver station in degrees
-        sat_alt    : Satellite/reflector altitude in meters (default to
-                     the geosynchronous altitude)
+        sat_long : Subsatellite point's longitude in degrees.
+        sat_alt  : Satellite/reflector altitude in meters above the reference
+            ellipsoid.
+        rx_long  : Longitude of the receiver station in degrees.
+        rx_lat   : Geodetic latitude of the receiver station in degrees.
 
     Returns:
         Tuple with elevation (degrees), azimuth (degrees) and slant range (m).
@@ -180,9 +179,11 @@ def _look_angles_spherical(sat_long, rx_long, rx_lat, sat_alt=GEOSYNC_ORBIT):
 
 
 def look_angles(sat_long,
+                sat_lat,
+                sat_alt,
                 rx_long,
                 rx_lat,
-                sat_alt=GEOSYNC_ORBIT,
+                rx_height=0,
                 implementation='ellipsoidal'):
     """Calculate look angles (elevation, azimuth) and slant range
 
@@ -191,11 +192,18 @@ def look_angles(sat_long,
     (latitude 0) and that the Rx station is at sea level.
 
     Args:
-        sat_long       : Subsatellite point's geodetic longitude.
+        sat_long       : Subsatellite point's longitude in degrees.
+        sat_lat:       : Subsatellite point's geodetic latitude in degrees.
+                         Used in the ellipsoidal calculation only. The
+                         spherical implementation assumes latitude=0 (equator).
+        sat_alt        : Satellite/reflector altitude in meters above the
+                         reference ellipsoid.
         rx_long        : Longitude of the receiver station in degrees.
         rx_lat         : Geodetic latitude of the receiver station in degrees.
-        sat_alt        : Satellite/reflector altitude in meters (default to
-                         the geosynchronous altitude).
+        rx_height      : Receiver station's orthometric height in meters. Used
+                         in the ellipsoidal calculation only, where it defaults
+                         to zero. The spherical implementation assumes
+                         rx_height=0 regardless of this parameter.
         implementation : "ellipsoidal" to use the rigorous ellipsoidal
                          computation approach presented in [1] or "spherical"
                          to use the spherical approximation discussed in the
@@ -210,15 +218,11 @@ def look_angles(sat_long,
 
     """
     if (implementation == 'ellipsoidal'):
-        elev, azt, d = _look_angles_ellipsoidal(sat_long,
-                                                rx_long,
-                                                rx_lat,
-                                                sat_alt=sat_alt)
+        elev, azt, d = _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt,
+                                                rx_long, rx_lat, rx_height)
     else:
-        elev, azt, d = _look_angles_spherical(sat_long,
-                                              rx_long,
-                                              rx_lat,
-                                              sat_alt=sat_alt)
+        elev, azt, d = _look_angles_spherical(sat_long, sat_alt, rx_long,
+                                              rx_lat)
 
     util.log_result("Elevation", "{:.2f} degrees".format(elev))
     util.log_result("Azimuth", "{:.2f} degrees".format(azt))
@@ -271,8 +275,8 @@ def polarization_angle(sat_long, rx_long, rx_lat):
     and facing the satellite in the sky would rotate the LNB clockwise.
 
     Args:
-        sat_long (float): Subsatellite point's geodetic longitude.
-        rx_long  (float): Earth station's geodetic longitude in degrees.
+        sat_long (float): Subsatellite point's longitude in degrees.
+        rx_long  (float): Earth station's longitude in degrees.
         rx_lat   (float): Earth station's geodetic latitude in degrees.
 
     Returns:

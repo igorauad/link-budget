@@ -214,22 +214,34 @@ def get_parser():
         help="Transponder bandwidth in Hz, required if the PEB is provided.")
 
     pos_p = parser.add_argument_group(
-        'Satellite and Earth Station Position Information')
+        title='Satellite and Earth Station Position Information',
+        description="Note longitudes are positive east of the prime meridian "
+        "and negative otherwise (west), while latitudes are positive above "
+        "the equator (north) and negative otherwise (south).")
+    pos_p.add_argument('--sat-long',
+                       type=float,
+                       help='Satellite\'s longitude in degrees.')
+    pos_p.add_argument('--sat-lat',
+                       type=float,
+                       default=0,
+                       help='Satellite\'s latitude in degrees. '
+                       '')
     pos_p.add_argument(
-        '--sat-long',
+        '--sat-alt',
         type=float,
-        help='Satellite\'s longitude. Negative to the West and positive to '
-        'the East.')
+        default=constants.GEOSYNC_ORBIT,
+        help='Satellite\'s altitude in meters above the reference ellipsoid.')
+    pos_p.add_argument('--rx-long',
+                       type=float,
+                       help='Rx station\'s longitude in degrees.')
+    pos_p.add_argument('--rx-lat',
+                       type=float,
+                       help='Rx station\'s latitude in degrees.')
     pos_p.add_argument(
-        '--rx-long',
+        '--rx-height',
         type=float,
-        help='Rx station\'s longitude. Negative to the West and positive '
-        'to the East.')
-    pos_p.add_argument(
-        '--rx-lat',
-        type=float,
-        help='Rx station\'s latitude. Positive to the North and negative '
-        'to the South.')
+        default=0,
+        help='Rx station\'s height in meters above mean sea level.')
     pos_p.add_argument(
         '--slant-range',
         type=float,
@@ -294,16 +306,31 @@ def validate(parser, args):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
 
-    # Mutual exclusion between "--slant-range" and the rx/sat positioning args
-    pos_args = [args.sat_long, args.rx_long, args.rx_lat]
-    pos_arg_labels = ['--sat-long', '--rx-long', '--rx-lat']
+    # Mutual exclusion between the slant range and the rx/sat positioning args
+    # without a default value. The positioning args are not allowed when the
+    # slant range is specified because they would be ignored (the look angles
+    # are not calculated when the slant range is given).
+    pos_args = {
+        '--sat-long': {
+            'val': args.sat_long,
+            'optional': False,
+        },
+        '--rx-long': {
+            'val': args.rx_long,
+            'optional': False,
+        },
+        '--rx-lat': {
+            'val': args.rx_lat,
+            'optional': False,
+        }
+    }
     missing_pos_args = []
     defined_pos_args = []
-    for arg, label in zip(pos_args, pos_arg_labels):
-        if (arg is None):
-            missing_pos_args.append(label)
-        else:
-            defined_pos_args.append(label)
+    for arg in pos_args.keys():
+        if (pos_args[arg]['val'] is None and not pos_args[arg]['optional']):
+            missing_pos_args.append(arg)
+        elif pos_args[arg]['val'] is not None:
+            defined_pos_args.append(arg)
     if (args.slant_range is None and len(missing_pos_args) > 0):
         parser.error("the following arguments are required: {}".format(
             ", ".join(missing_pos_args)))
@@ -368,12 +395,13 @@ def analyze(args, verbose=False):
 
     # -------- Look angles --------
     if (args.slant_range is None):
-        # Satellite altitude
-        sat_alt = constants.GEOSYNC_ORBIT if not args.radar else args.radar_alt
+        # Satellite or radar object altitude
+        sat_alt = args.sat_alt if not args.radar else args.radar_alt
 
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(
-            args.sat_long, args.rx_long, args.rx_lat, sat_alt)
+            args.sat_long, args.sat_lat, sat_alt, args.rx_long, args.rx_lat,
+            args.rx_height)
 
         # Polarization skew
         #

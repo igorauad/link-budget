@@ -1,11 +1,15 @@
 import unittest
+
 from . import pointing
+from .constants import GEOSYNC_ORBIT
 
 
 class TestPointing(unittest.TestCase):
 
     def test_look_angles(self):
         """Test Rx stations at all four quadrants (SW, NW, NE, SE)
+
+        Satellite: Eutelsat 113 at geostationary orbit and -113° longitude (W).
 
         Check the elevation angle, azimumth angle (true north), and slant range
         according to https://www.dishpointer.com.
@@ -88,9 +92,14 @@ class TestPointing(unittest.TestCase):
             },
         ]
 
+        # Geostationary latitude and altitude
+        sat_lat = 0
+        sat_alt = GEOSYNC_ORBIT
+
         for info in setup_info:
             elevation, azimuth, slant_range = pointing.look_angles(
-                info['sat_long'], info['rx_long'], info['rx_lat'])
+                info['sat_long'], sat_lat, sat_alt, info['rx_long'],
+                info['rx_lat'])
             slant_range_km = slant_range / 1e3
             pol_angle = pointing.polarization_angle(info['sat_long'],
                                                     info['rx_long'],
