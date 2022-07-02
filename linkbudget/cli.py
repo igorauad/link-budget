@@ -247,6 +247,11 @@ def get_parser():
         type=float,
         help='Slant path length in km between the Rx station and the '
         'satellite or reflector.')
+    pos_p.add_argument(
+        '--ref-ellipsoid',
+        choices=['WGS84', 'GRS80'],
+        default='WGS84',
+        help="Reference Earth ellipsoid to use in the computation.")
 
     radar_p = parser.add_argument_group('Radar Options')
     radar_p.add_argument(
@@ -401,7 +406,7 @@ def analyze(args, verbose=False):
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(
             args.sat_long, args.sat_lat, sat_alt, args.rx_long, args.rx_lat,
-            args.rx_height)
+            args.rx_height, args.ref_ellipsoid)
 
         # Polarization skew
         #
