@@ -1,7 +1,9 @@
 """Link budget command-line utility"""
+import argparse
 import json
 import logging
-import argparse
+import sys
+from datetime import datetime
 
 from . import calc, constants, propagation, pointing, util
 from .antenna import Antenna
@@ -252,6 +254,31 @@ def get_parser():
         choices=['WGS84', 'GRS80'],
         default='WGS84',
         help="Reference Earth ellipsoid to use in the computation.")
+    pos_p.add_argument(
+        '--obs-time',
+        type=datetime.fromisoformat,
+        help="Observation time for the satellite position\'s prediction. "
+        "Requires the \'--sat-tle-name\' option and must be given in UTC "
+        "time with ISO 8601 format.")
+
+    tle_p = parser.add_argument_group(title='Satellite TLE Information')
+    tle_p.add_argument('--sat-tle-name',
+                       help="Satellite name on CelesTrak\'s TLE database.")
+    tle_p.add_argument(
+        '--sat-tle-group',
+        choices=pointing.CELESTRAK_GROUPS,
+        default=None,
+        help="CelesTrak satellite group to restrict the search. "
+        "When undefined, searches the entire database.")
+    tle_p.add_argument(
+        '--tle-save-dir',
+        default=pointing.get_default_tle_dataset_dir(),
+        help="Directory where downloaded TLE datasets should be saved.")
+    tle_p.add_argument('--tle-no-save',
+                       action='store_true',
+                       default=False,
+                       help="Do not save the downloaded TLE datasets locally. "
+                       "A new download will be required every time.")
 
     radar_p = parser.add_argument_group('Radar Options')
     radar_p.add_argument(
@@ -311,42 +338,63 @@ def validate(parser, args):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
 
-    # Mutual exclusion between the slant range and the rx/sat positioning args
-    # without a default value. The positioning args are not allowed when the
-    # slant range is specified because they would be ignored (the look angles
-    # are not calculated when the slant range is given).
-    pos_args = {
-        '--sat-long': {
-            'val': args.sat_long,
-            'optional': False,
-        },
-        '--rx-long': {
-            'val': args.rx_long,
-            'optional': False,
-        },
-        '--rx-lat': {
-            'val': args.rx_lat,
-            'optional': False,
+    # When the slant range is provided, none of the coordinates matter (neither
+    # the satellite's nor the Rx station's). That is because the look angles
+    # are not computed when the slant range is given. The slant range suffices
+    # for the link budget calculations in general, except if the atmospheric
+    # loss models are active, in which case the coordinates are required.
+    #
+    # Furthermore, when the satellite TLE name is given, the satellite position
+    # is obtained by prediction with the TLE orbital data, so only the Rx
+    # coordinates are required. However, the user may also choose to inform the
+    # satellite coordinates directly.
+    if args.slant_range is None:
+        if args.sat_tle_name is None:  # satellite position by coordinates
+            required_args = {
+                '--sat-long': args.sat_long,
+                '--rx-long': args.rx_long,
+                '--rx-lat': args.rx_lat
+            }
+            # NOTE the --sat-lat, --sat-alt, and --rx-height args have default
+            # values.
+            mutex_source = '--sat-long'
+            mutex_args = {
+                '--sat-tle-name': args.sat_tle_name,
+                '--obs-time': args.obs_time
+            }
+        else:  # satellite position via TLE prediction
+            required_args = {
+                '--rx-long': args.rx_long,
+                '--rx-lat': args.rx_lat
+            }
+            mutex_source = '--sat-tle-name'
+            mutex_args = {'--sat-long': args.sat_long}
+
+    else:  # slant range is given
+        required_args = {}
+        mutex_source = '--slant-range'
+        mutex_args = {
+            '--sat-tle-name': args.sat_tle_name,
+            '--sat-long': args.sat_long,
+            '--rx-long': args.rx_long,
+            '--rx-lat': args.rx_lat,
+            '--obs-time': args.obs_time
         }
-    }
-    missing_pos_args = []
-    defined_pos_args = []
-    for arg in pos_args.keys():
-        if (pos_args[arg]['val'] is None and not pos_args[arg]['optional']):
-            missing_pos_args.append(arg)
-        elif pos_args[arg]['val'] is not None:
-            defined_pos_args.append(arg)
-    if (args.slant_range is None and len(missing_pos_args) > 0):
+
+    missing_args = [key for key, val in required_args.items() if val is None]
+    if missing_args:
         parser.error("the following arguments are required: {}".format(
-            ", ".join(missing_pos_args)))
-    elif (args.slant_range is not None and len(defined_pos_args) > 0):
-        parser.error("argument{} {}: not allowed with argument "
-                     "--slant-range".format(
-                         "s" if len(defined_pos_args) > 1 else "",
-                         ", ".join(defined_pos_args)))
+            ", ".join(missing_args)))
+    unexpected_args = [
+        key for key, val in mutex_args.items() if val is not None
+    ]
+    if unexpected_args:
+        parser.error("argument{} {}: not allowed with argument {}".format(
+            "s" if len(unexpected_args) > 1 else "",
+            ", ".join(unexpected_args), mutex_source))
 
     # The atmospheric loss models require the Rx/satellite coordinates.
-    if len(missing_pos_args) > 0 and args.atmospheric_loss is None:
+    if args.slant_range is not None and args.atmospheric_loss is None:
         logging.error(
             "Unable to model the atmospheric loss without the Rx and "
             "satellite coordinates")
@@ -400,12 +448,21 @@ def analyze(args, verbose=False):
 
     # -------- Look angles --------
     if (args.slant_range is None):
-        # Satellite or radar object altitude
-        sat_alt = args.sat_alt if not args.radar else args.radar_alt
+        if args.sat_tle_name is not None:
+            try:
+                sat_long, sat_lat, sat_alt = pointing.get_sat_pos_by_tle(
+                    args.sat_tle_name, args.sat_tle_group, args.obs_time,
+                    args.tle_save_dir, args.tle_no_save)
+            except ValueError:
+                sys.exit(1)
+        else:
+            sat_long = args.sat_long
+            sat_lat = args.sat_lat
+            sat_alt = args.sat_alt if not args.radar else args.radar_alt
 
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(
-            args.sat_long, args.sat_lat, sat_alt, args.rx_long, args.rx_lat,
+            sat_long, sat_lat, sat_alt, args.rx_long, args.rx_lat,
             args.rx_height, args.ref_ellipsoid)
 
         # Polarization skew
@@ -414,7 +471,7 @@ def analyze(args, verbose=False):
         # assumed equal to 45 degrees for circular polarization, according to
         # Recommendation ITU-R P.838-3.
         if (args.polarization == 'linear'):
-            pol_skew = pointing.polarization_angle(args.sat_long, args.rx_long,
+            pol_skew = pointing.polarization_angle(sat_long, args.rx_long,
                                                    args.rx_lat)
         else:
             pol_skew = 45

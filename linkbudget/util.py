@@ -1,5 +1,6 @@
-from math import log10
 import logging
+import os
+from math import log10
 
 from .constants import SPEED_OF_LIGHT
 
@@ -168,3 +169,15 @@ def log_result(parameter, value):
 
     """
     logging.info("{:30s} | {:30s}".format(parameter, value))
+
+
+def get_home_dir():
+    """Get the user's home directory even if running with sudo"""
+    sudo_user = os.environ.get('SUDO_USER')
+    user = sudo_user if sudo_user is not None else ""
+    return os.path.expanduser("~" + user)
+
+
+def get_default_lb_dir():
+    """Get the default directory for link-budget-specific files"""
+    return os.path.join(get_home_dir(), ".link-budget")

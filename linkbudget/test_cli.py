@@ -143,6 +143,27 @@ class TestCli(unittest.TestCase):
         # The final result differs slightly from the one presented in [2] due
         # to various rounding of intermediate results.
 
+    def test_ku_band_example_with_tle_sat_pos(self):
+        """Test Ku band example with satellite position given by TLE"""
+        # Example SA8-1 from [1]:
+        parser = cli.get_parser()
+        args = parser.parse_args([
+            '--eirp', '52', '--freq', '12.45e9', '--if-bw', '24e6',
+            '--rx-dish-size', '0.46', '--rx-dish-efficiency', '0.557',
+            '--atmospheric-loss', '0', '--antenna-noise-temp', '20',
+            '--lnb-noise-fig', '0.6', '--lnb-gain', '40', '--coax-length',
+            '110', '--rx-noise-fig', '10', '--rx-long', '-82.43', '--rx-lat',
+            '29.71', '--sat-tle-name', 'Directv 9S'
+        ])
+        cli.validate(parser, args)
+        res = cli.analyze(args)
+        self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
+
+        # If the TLE name is invalid, the analyze function exits
+        with self.assertRaises(SystemExit):
+            args.sat_tle_name = 'Invalid Name'
+            res = cli.analyze(args)
+
     def test_ku_band_example_with_atmospheric_attn(self):
         """Test Ku band example while considering atmospheric attenuation"""
         # Same arguments based on Example SA8-1 from [1], but now with the

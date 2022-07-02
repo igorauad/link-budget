@@ -8,11 +8,141 @@ References:
   Systems: Systems, Techniques and Technology. 3rd ed.
 
 """
+import logging
+import os
+from datetime import datetime
 from math import sqrt, sin, cos, tan, atan, atan2, degrees, radians
+from urllib.parse import quote
 
 import numpy as np
+from skyfield.api import load, wgs84
 
 from . import util
+
+CELESTRAK_GROUPS = [
+    'active', 'stations', 'geo', 'intelsat', 'ses', 'iridium', 'iridium-NEXT',
+    'starlink', 'oneweb', 'orbcomm', 'globalstar', 'swarm', 'amateur',
+    'x-comm', 'other-comm', 'satnogs', 'gorizont', 'raduga', 'molniya',
+    'weather', 'noaa', 'goes', 'resource', 'sarsat', 'dmc', 'tdrss', 'argos',
+    'planet', 'spire', 'gnss', 'gps-ops', 'glo-ops', 'galileo', 'beidou',
+    'sbas', 'nnss', 'musson', 'military', 'radar', 'cubesat', 'other'
+]
+CELESTRAK_BASE_URL = "https://celestrak.org/NORAD/elements/gp.php"
+skyfield_ts = load.timescale()
+
+
+def get_default_tle_dataset_dir():
+    """Get the default directory for saving TLE datasets"""
+    return os.path.join(util.get_default_lb_dir(), "tle")
+
+
+def get_sat_pos_by_tle(name,
+                       group=None,
+                       obs_time=None,
+                       save_dir=None,
+                       no_save=False):
+    """Get satellite position from Two-Line Element (TLE) predictions
+
+    First, searches for the satellite on CelesTrak's TLE database. Then,
+    computes the expected satellite position on the given observation time
+    using the implementation from the Skyfield package.
+
+    The TLE dataset is queried using the format described in
+    https://celestrak.org/NORAD/documentation/gp-data-formats.php. More
+    specifically, it is either requested with:
+
+    https://celestrak.org/NORAD/elements/gp.php?NAME=VALUE&FORMAT=tle
+
+    or
+
+    https://celestrak.org/NORAD/elements/gp.php?GROUP=VALUE&FORMAT=tle
+
+    The former is used when the satellite is specified by name only (group set
+    to None). The second format is used when the specific group on CelesTrak's
+    database is also informed. See the groups at
+    https://celestrak.org/NORAD/elements/. For example, the 'active' group
+    holds a long list of active satellites, whereas the 'geo' group focuses on
+    active geosynchronous satellites, and so on.
+
+    This function downloads the TLE dataset before processing, and the
+    downloads are saved as txt files at `~/.link-budget/tle/` by default. When
+    the dataset is already available locally (downloaded previously), this
+    function does not need to download it again. This behavior can be
+    customized using the `save_dir` and `no_save` arguments.
+
+    Args:
+        name (str): Satellite name on the TLE database.
+        group (str, optional): Group to which the satellite belongs on the
+            CelesTrak database. Defaults to None, in which case the satellite
+            is searched by name over the entire database.
+        obs_time (datetime, optional): Observation time. Defaults to
+            None, in which case the current time is used.
+        save_dir (str, optional): Directory on which the downloaded TLE dataset
+            should be saved. Defaults to None, in which case the
+            `~/.link-budget/tle/` directory is used.
+        no_save (bool, optional): Whether to save the downloaded TLE dataset
+            permanently on the save directory (save_dir) to speed up future
+            queries.
+
+    Returns:
+        tuple: Satellite longitude (degrees), latitude (degrees), and altitude
+        (meters).
+    """
+    name = name.upper()  # ensure upper case
+
+    if save_dir is None:
+        save_dir = get_default_tle_dataset_dir()
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    if group is not None:
+        url = CELESTRAK_BASE_URL + "?GROUP={}&FORMAT=tle".format(group)
+        filename = 'tle-group-{}.txt'.format(group)
+    else:
+        url = CELESTRAK_BASE_URL + "?NAME={}&FORMAT=tle".format(quote(name))
+        filename = 'tle-name-{}.txt'.format(name.replace(" ", "-"))
+
+    filename = os.path.join(save_dir, filename)
+    previously_downloaded = os.path.exists(filename)
+    satellites = {
+        sat.name: sat
+        for sat in load.tle_file(url, filename=filename)
+    }
+
+    if name not in satellites:
+        logging.error(
+            "Satellite \"{}\" not found on the TLE database.".format(name))
+        closest_options = []
+        for key in satellites.keys():
+            if name in key:
+                closest_options.append(key)
+        if closest_options:
+            logging.info("Perhaps you mean one of the following options?")
+            for option in closest_options:
+                logging.info("- " + option)
+        if no_save and not previously_downloaded:  # just downloaded
+            os.remove(filename)
+        raise ValueError("Invalid satellite name")
+
+    satellite = satellites[name]
+
+    obs_time = datetime.utcnow() if obs_time is None else obs_time
+    t = skyfield_ts.utc(obs_time.year, obs_time.month, obs_time.day,
+                        obs_time.hour, obs_time.minute, obs_time.second)
+    geocentric = satellite.at(t)
+    lat, lon = wgs84.latlon_of(geocentric)
+    height = wgs84.height_of(geocentric)
+
+    util.log_result(
+        "Satellite Pos (Lat, Lon, Alt)",
+        "{:.2f}°, {:.2f}°, {:.2f} km".format(lat.degrees, lon.degrees,
+                                             height.km))
+
+    if no_save and not previously_downloaded:  # just downloaded
+        os.remove(filename)
+
+    return lon.degrees, lat.degrees, height.m
 
 
 def look_angles(sat_long,

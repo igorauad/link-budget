@@ -26,5 +26,5 @@ setup(name="link-budget",
           "Programming Language :: Python :: 3 :: Only",
           "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
       ],
-      install_requires=["numpy>=1.19.4", "itur>=0.3.4"],
+      install_requires=["numpy>=1.19.4", "itur>=0.3.4", "skyfield==1.42"],
       python_requires='>=3')
