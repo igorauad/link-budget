@@ -8,28 +8,42 @@ References:
   Systems: Systems, Techniques and Technology. 3rd ed.
 
 """
-from math import sqrt, sin, asin, cos, acos, tan, atan, atan2, degrees, \
-    radians
+from math import sqrt, sin, cos, tan, atan, atan2, degrees, radians
 
 import numpy as np
 
 from . import util
 
 
-def _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt, rx_long, rx_lat,
-                             rx_height):
+def look_angles(sat_long,
+                sat_lat,
+                sat_alt,
+                rx_long,
+                rx_lat,
+                rx_height=0,
+                ellipsoid="WGS84"):
     """Calculate look angles (elevation, azimuth) and slant range
 
-    Computation using the rigorous ellipsoidal approach presented in [1].
+    Computes the angles relative to a reflector, either active (satellite) or
+    passive (radar object). Compute using the rigorous ellipsoidal approach
+    discussed in [1].
 
     Args:
-        sat_long   : Subsatellite point's longitude in degrees.
-        sat_lat    : Subsatellite point's geodetic latitude in degrees.
-        sat_alt    : Satellite/reflector altitude in meters above the reference
-                     ellipsoid.
-        rx_long    : Longitude of the receiver station in degrees.
-        rx_lat     : Geodetic latitude of the receiver station in degrees.
-        rx_height  : Orthometric height (height above sea-level) in meters.
+        sat_long       : Subsatellite point's longitude in degrees.
+        sat_lat:       : Subsatellite point's geodetic latitude in degrees.
+        sat_alt        : Satellite/reflector altitude in meters above the
+                         reference ellipsoid.
+        rx_long        : Longitude of the receiver station in degrees.
+        rx_lat         : Geodetic latitude of the receiver station in degrees.
+        rx_height      : Receiver station's orthometric height (height above
+                         sea-level) in meters. Defaults to zero.
+        ellipsoid      : Reference ellipsoid for the computation, GRS80 or
+                         WGS84. Defaults to WGS84.
+
+    Note:
+        Positive longitudes are east of the prime meridian and negative
+        longitudes are west of the prime meridian. Positive latitudes are north
+        of the equator and negative latitudes are south of the equator.
 
     Returns:
         Tuple with elevation (degrees), azimuth (degrees) and slant range (m).
@@ -46,16 +60,19 @@ def _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt, rx_long, rx_lat,
     # Step 2: TRANSFORMATION CURVILINEAR TO CARTESIAN COORDINATES
 
     # Ellipsoid parameters from GRS80
-    f_inv = 298.257222100882711  # reciprocal flattening
-    f = 1 / f_inv  # flattening
+    f_inv = {
+        'GRS80': 298.257222100882711,
+        'WGS84': 298.257223563
+    }  # reciprocal flattening
+    f = 1 / f_inv[ellipsoid]  # flattening
     e_sq = 2 * f - f**2  # eccentricity squared
 
     # Earth parameters
-    R_eq = 6378.137e3  # equatorial radius in meters (see [4])
+    R_eq = 6378.137e3  # equatorial radius in meters (see [2])
     r = R_eq + sat_alt  # from the earth's center to the spacecraft
 
     # Principal radius of curvature in the prime vertical (see the the
-    # discussion below Eq 12 in [1]). The computation is also discussed in [4].
+    # discussion below Eq 12 in [1]). The computation is also discussed in [2].
     N = R_eq / sqrt(1 - e_sq * sin(rx_lat)**2)
 
     # Ellipsoidal (geodetic) height of the antenna location:
@@ -107,128 +124,12 @@ def _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt, rx_long, rx_lat,
 
     azimuth_degrees = degrees(azimuth) % 360
     elevation_degrees = degrees(vert_angle)
+
+    util.log_result("Elevation", "{:.2f} degrees".format(elevation_degrees))
+    util.log_result("Azimuth", "{:.2f} degrees".format(azimuth_degrees))
+    util.log_result("Distance", "{:.2f} km".format(slant_range / 1e3))
+
     return elevation_degrees, azimuth_degrees, slant_range
-
-
-def _look_angles_spherical(sat_long, sat_alt, rx_long, rx_lat):
-    """Calculate look angles (elevation, azimuth) and slant range
-
-    Computation using the spherical approximation discussed in [1].
-
-    Args:
-        sat_long : Subsatellite point's longitude in degrees.
-        sat_alt  : Satellite/reflector altitude in meters above the reference
-            ellipsoid.
-        rx_long  : Longitude of the receiver station in degrees.
-        rx_lat   : Geodetic latitude of the receiver station in degrees.
-
-    Returns:
-        Tuple with elevation (degrees), azimuth (degrees) and slant range (m).
-
-    """
-    # Convert to radians
-    sat_long = radians(sat_long)
-    rx_long = radians(rx_long)
-    rx_lat = radians(rx_lat)
-
-    # Constants
-    R = 6371e3  # mean radius of the earth in meters
-    R_eq = 6378.137e3  # equatorial radius in meters (see [4])
-    r = R_eq + sat_alt  # from the earth's center to the spacecraft
-
-    # Eq. (1) from [1]:
-    cos_gamma = cos(rx_lat) * cos(sat_long - rx_long)
-    gamma = acos(cos_gamma)
-    # gamma is the angle between the radius vectors to the Rx location and the
-    # sub-satellite point (intersection with the earth's surface of the
-    # geocentric radius vector to the satellite). Equation (1) is the cosine of
-    # the this angle.
-
-    # Distance between the satellite and the receiver (a.k.a. slant range),
-    # from Equation (2) of [1]:
-    d = r * sqrt(1 + (R / r)**2 - 2 * (R / r) * cos_gamma)
-
-    # Zenith distance, Equation (4) from [1]:
-    z = asin((r / d) * sin(gamma))
-
-    # Elevation:
-    v = 90 - degrees(z)
-
-    # Angle of Equation (6) from [1]:
-    beta = degrees(acos(tan(rx_lat) / tan(gamma)))
-
-    # Azimuth:
-    if (rx_lat > 0):
-        # Rx is north of the satellite
-        if (sat_long < rx_long):
-            # Satellite to SW
-            alpha = 180 + beta
-        else:
-            # Satellite to SE
-            alpha = 180 - beta
-    else:
-        # Rx is south of the satellite
-        if (sat_long < rx_long):
-            # Satellite to NW
-            alpha = 360 - beta
-        else:
-            # Satellite to NE
-            alpha = beta
-
-    return v, alpha, d
-
-
-def look_angles(sat_long,
-                sat_lat,
-                sat_alt,
-                rx_long,
-                rx_lat,
-                rx_height=0,
-                implementation='ellipsoidal'):
-    """Calculate look angles (elevation, azimuth) and slant range
-
-    Computes the angles relative to a reflector, either active (satellite) or
-    passive (radar object). Assumes the reflector is located above the equator
-    (latitude 0) and that the Rx station is at sea level.
-
-    Args:
-        sat_long       : Subsatellite point's longitude in degrees.
-        sat_lat:       : Subsatellite point's geodetic latitude in degrees.
-                         Used in the ellipsoidal calculation only. The
-                         spherical implementation assumes latitude=0 (equator).
-        sat_alt        : Satellite/reflector altitude in meters above the
-                         reference ellipsoid.
-        rx_long        : Longitude of the receiver station in degrees.
-        rx_lat         : Geodetic latitude of the receiver station in degrees.
-        rx_height      : Receiver station's orthometric height in meters. Used
-                         in the ellipsoidal calculation only, where it defaults
-                         to zero. The spherical implementation assumes
-                         rx_height=0 regardless of this parameter.
-        implementation : "ellipsoidal" to use the rigorous ellipsoidal
-                         computation approach presented in [1] or "spherical"
-                         to use the spherical approximation discussed in the
-                         same document.
-
-    Note:
-        Positive longitudes are east, whereas negative longitudes are to the
-        west.
-
-    Returns:
-        Tuple with elevation (degrees), azimuth (degrees) and slant range (m).
-
-    """
-    if (implementation == 'ellipsoidal'):
-        elev, azt, d = _look_angles_ellipsoidal(sat_long, sat_lat, sat_alt,
-                                                rx_long, rx_lat, rx_height)
-    else:
-        elev, azt, d = _look_angles_spherical(sat_long, sat_alt, rx_long,
-                                              rx_lat)
-
-    util.log_result("Elevation", "{:.2f} degrees".format(elev))
-    util.log_result("Azimuth", "{:.2f} degrees".format(azt))
-    util.log_result("Distance", "{:.2f} km".format(d / 1e3))
-
-    return elev, azt, d
 
 
 def polarization_angle(sat_long, rx_long, rx_lat):
