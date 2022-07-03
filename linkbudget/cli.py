@@ -3,7 +3,8 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+
+from dateutil.parser import isoparse
 
 from . import calc, constants, propagation, pointing, util
 from .antenna import Antenna
@@ -256,10 +257,10 @@ def get_parser():
         help="Reference Earth ellipsoid to use in the computation.")
     pos_p.add_argument(
         '--obs-time',
-        type=datetime.fromisoformat,
+        type=isoparse,
         help="Observation time for the satellite position\'s prediction. "
-        "Requires the \'--sat-tle-name\' option and must be given in UTC "
-        "time with ISO 8601 format.")
+        "Requires the \'--sat-tle-name\' option and must be given in "
+        "ISO 8601 format.")
 
     tle_p = parser.add_argument_group(title='Satellite TLE Information')
     tle_p.add_argument('--sat-tle-name',
