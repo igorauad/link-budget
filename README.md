@@ -20,6 +20,7 @@ Example:
 
 ```
 link-budget \
+  --sat-long -101 \
   --eirp 52 \
   --freq 12.45e9 \
   --if-bw 24e6 \
@@ -28,7 +29,6 @@ link-budget \
   --lnb-gain 40 \
   --coax-length 110 \
   --rx-noise-fig 10 \
-  --sat-long -101 \
   --rx-long -82.43 \
   --rx-lat 29.71
 ```
