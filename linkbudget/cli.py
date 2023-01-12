@@ -480,6 +480,11 @@ def analyze(args, verbose=False):
         elevation = azimuth = pol_skew = None
         slant_range_m = args.slant_range * 1e3  # km to m
 
+    if (elevation is not None and elevation < 0):
+        el_label = "Object" if args.radar else "Satellite"
+        logging.error("{} below the horizon".format(el_label))
+        return
+
     # -------- Tx dish gain --------
     # Skipped if the EIRP is given directly.
     if (args.eirp is None):
