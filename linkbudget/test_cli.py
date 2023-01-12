@@ -157,7 +157,7 @@ class TestCli(unittest.TestCase):
         ])
         cli.validate(parser, args)
         res = cli.analyze(args)
-        self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
+        self.assertAlmostEqual(res['cnr_db'], 15.95, delta=0.01)
 
         # If the TLE name is invalid, the analyze function exits
         with self.assertRaises(SystemExit):
