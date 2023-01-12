@@ -262,7 +262,7 @@ def look_angles(sat_long,
     return elevation_degrees, azimuth_degrees, slant_range
 
 
-def polarization_angle(sat_long, rx_long, rx_lat):
+def polarization_angle(sat_long, sat_lat, rx_long, rx_lat):
     """Compute the polarization angle (skew) at a given location
 
     A linearly polarized satellite transmission has the electric field oriented
@@ -307,6 +307,7 @@ def polarization_angle(sat_long, rx_long, rx_lat):
 
     Args:
         sat_long (float): Subsatellite point's longitude in degrees.
+        sat_lat  (float): Subsatellite point's geodetic latitude in degrees.
         rx_long  (float): Earth station's longitude in degrees.
         rx_lat   (float): Earth station's geodetic latitude in degrees.
 
@@ -316,8 +317,15 @@ def polarization_angle(sat_long, rx_long, rx_lat):
     """
     # Convert to radians
     sat_long = radians(sat_long)
+    sat_lat = radians(sat_lat)
     rx_long = radians(rx_long)
     rx_lat = radians(rx_lat)
+
+    # FIXME support computation for satellites in non-geostationary orbit
+    if sat_lat != 0:
+        logging.warning(
+            "The polarization angle is inaccurate for non-geostationary "
+            "satellites")
 
     # Computation based on Eq. (8.22c) from [3]:
     delta_long = rx_long - sat_long

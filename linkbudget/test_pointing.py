@@ -103,7 +103,7 @@ class TestPointing(unittest.TestCase):
                 info['sat_long'], sat_lat, sat_alt, info['rx_long'],
                 info['rx_lat'])
             slant_range_km = slant_range / 1e3
-            pol_angle = pointing.polarization_angle(info['sat_long'],
+            pol_angle = pointing.polarization_angle(info['sat_long'], sat_lat,
                                                     info['rx_long'],
                                                     info['rx_lat'])
 

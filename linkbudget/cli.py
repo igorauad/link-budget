@@ -472,8 +472,8 @@ def analyze(args, verbose=False):
         # assumed equal to 45 degrees for circular polarization, according to
         # Recommendation ITU-R P.838-3.
         if (args.polarization == 'linear'):
-            pol_skew = pointing.polarization_angle(sat_long, args.rx_long,
-                                                   args.rx_lat)
+            pol_skew = pointing.polarization_angle(sat_long, sat_lat,
+                                                   args.rx_long, args.rx_lat)
         else:
             pol_skew = 45
     else:
