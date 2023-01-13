@@ -217,23 +217,10 @@ def get_parser():
         help="Transponder bandwidth in Hz, required if the PEB is provided.")
 
     pos_p = parser.add_argument_group(
-        title='Satellite and Earth Station Position Information',
+        title='Earth Station Position Information',
         description="Note longitudes are positive east of the prime meridian "
         "and negative otherwise (west), while latitudes are positive above "
         "the equator (north) and negative otherwise (south).")
-    pos_p.add_argument('--sat-long',
-                       type=float,
-                       help='Satellite\'s longitude in degrees.')
-    pos_p.add_argument('--sat-lat',
-                       type=float,
-                       default=0,
-                       help='Satellite\'s latitude in degrees. '
-                       '')
-    pos_p.add_argument(
-        '--sat-alt',
-        type=float,
-        default=constants.GEOSYNC_ORBIT,
-        help='Satellite\'s altitude in meters above the reference ellipsoid.')
     pos_p.add_argument('--rx-long',
                        type=float,
                        help='Rx station\'s longitude in degrees.')
@@ -245,17 +232,38 @@ def get_parser():
         type=float,
         default=0,
         help='Rx station\'s height in meters above mean sea level.')
-    pos_p.add_argument(
+
+    pos_s = parser.add_argument_group(
+        title='Satellite or Radar Object Position Information',
+        description="Note longitudes are positive east of the prime meridian "
+        "and negative otherwise (west), while latitudes are positive above "
+        "the equator (north) and negative otherwise (south).")
+    pos_s.add_argument(
+        '--sat-long',
+        type=float,
+        help='Longitude in degrees of the satellite or radar object.')
+    pos_s.add_argument(
+        '--sat-lat',
+        type=float,
+        default=0,
+        help='Latitude in degrees of the satellite or radar object.')
+    pos_s.add_argument(
+        '--sat-alt',
+        type=float,
+        default=constants.GEOSYNC_ORBIT,
+        help='Satellite or radar object\'s altitude in meters above '
+        'the reference ellipsoid.')
+    pos_s.add_argument(
         '--slant-range',
         type=float,
         help='Slant path length in km between the Rx station and the '
         'satellite or reflector.')
-    pos_p.add_argument(
+    pos_s.add_argument(
         '--ref-ellipsoid',
         choices=['WGS84', 'GRS80'],
         default='WGS84',
         help="Reference Earth ellipsoid to use in the computation.")
-    pos_p.add_argument(
+    pos_s.add_argument(
         '--obs-time',
         type=isoparse,
         help="Observation time for the satellite position\'s prediction. "
