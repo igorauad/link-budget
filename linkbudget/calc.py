@@ -354,7 +354,7 @@ def passive_attn_noise_fig(attn_db, T):
 
 
 def antenna_noise_temp(attn_db, T_medium=270, coupling_eff=1.0):
-    """Compute the antenna noise temperature based on the atmosphere attenuation
+    """Compute the antenna noise temperature
 
     Follow the theory in Section 4.5.2 of [3].
 
