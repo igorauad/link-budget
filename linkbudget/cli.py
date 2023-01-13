@@ -9,7 +9,7 @@ from dateutil.parser import isoparse
 from . import calc, constants, propagation, pointing, util
 from .antenna import Antenna
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 
 def get_parser():
