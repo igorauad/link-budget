@@ -387,15 +387,9 @@ class TestCli(unittest.TestCase):
         res = cli.analyze(args)
         self.assertAlmostEqual(res['cnr_db'], 15.95, places=2)
 
-        # Radar mode requires the radar object's altitude and cross section
+        # Radar mode requires the radar object's cross section
         with self.assertRaises(SystemExit):
-            args = parser.parse_args(base_args +
-                                     ['--radar', '--radar-alt', '0'])
-            cli.validate(parser, args)
-
-        with self.assertRaises(SystemExit):
-            args = parser.parse_args(base_args +
-                                     ['--radar', '--radar-cross-section', '0'])
+            args = parser.parse_args(base_args + ['--radar'])
             cli.validate(parser, args)
 
         # Slant range is mutual exclusive with satellite and Rx coordinates

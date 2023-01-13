@@ -286,20 +286,11 @@ def get_parser():
         '--radar',
         default=False,
         action='store_true',
-        help='Activate radar mode so that the link budget considers the '
-        'path loss to and back from object.')
-    radar_p.add_argument('--radar-alt',
-                         type=float,
-                         help='Altitude of the radar object')
+        help='Activate monostatic radar mode so that the link budget '
+        'considers the path loss to and back from object.')
     radar_p.add_argument('--radar-cross-section',
                          type=float,
                          help='Radar cross-section of the radar object.')
-    radar_p.add_argument(
-        '--radar-bistatic',
-        default=False,
-        action='store_true',
-        help='Bistatic radar scenario, i.e., radar transmitter and receiver '
-        'are not collocated.')
     return parser
 
 
@@ -332,9 +323,6 @@ def validate(parser, args):
             "Target link availability must be between 95 and 99.999 %%")
 
     if (args.radar):
-        if (args.slant_range is None and args.radar_alt is None):
-            parser.error("Argument --radar-alt is required in radar mode "
-                         "if the --slant-range argument is not provided")
         if (args.radar_cross_section is None):
             parser.error("Argument --radar-cross-section is required in radar "
                          "mode (--radar)")
@@ -459,7 +447,7 @@ def analyze(args, verbose=False):
         else:
             sat_long = args.sat_long
             sat_lat = args.sat_lat
-            sat_alt = args.sat_alt if not args.radar else args.radar_alt
+            sat_alt = args.sat_alt
 
         # Look angles
         elevation, azimuth, slant_range_m = pointing.look_angles(
@@ -538,9 +526,10 @@ def analyze(args, verbose=False):
     else:
         radar_obj_gain_db = None
     path_loss_db = calc.path_loss(slant_range_m, args.freq, args.radar,
-                                  radar_obj_gain_db, args.radar_bistatic)
-    # TODO support bistatic radar. Add distance from radar object to rx
-    # station.
+                                  radar_obj_gain_db)
+    # TODO support bistatic radar mode. The path_loss function already supports
+    # it. We just need to add --tx-lat/--tx-long options to separate the Tx and
+    # Rx locations for bistatic mode.
 
     # -------- Atmospheric loss --------
     #
