@@ -30,7 +30,7 @@ setup(name="link-budget",
           "itur>=0.3.4",
           "numpy>=1.19.4",
           "python-dateutil>=2.7.0",
-          "scipy==1.9.3",
+          "scipy<=1.9.3",
           "skyfield==1.42",
       ],
       python_requires='>=3')
