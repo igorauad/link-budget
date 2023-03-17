@@ -31,8 +31,8 @@ def get_parser():
     margin_p.add_argument(
         '--min-cnr',
         type=float,
-        help='Target minimum carrier-to-noise ratio (CNR) in dB considering '
-        'an ideal receiver (i.e., excluding the implementation margin).')
+        help='Target minimum carrier-to-noise ratio (CNR) in dB for the '
+        'link margin computation.')
     margin_p.add_argument(
         '--impl-margin',
         type=float,
@@ -48,10 +48,11 @@ def get_parser():
         help='Downlink carrier frequency in Hz for satellite signals or '
         'simply the signal frequency in Hz for radar (passively reflected) '
         'signals.')
-    freq_p.add_argument('--if-bw',
+    freq_p.add_argument('--bw',
+                        '--if-bw',
                         required=True,
                         type=float,
-                        help='IF bandwidth in Hz.')
+                        help='Nominal signal bandwidth in Hz.')
 
     pol_p = parser.add_argument_group('Polarization Options')
     pol_p.add_argument(
@@ -60,7 +61,7 @@ def get_parser():
         default='linear',
         help='Polarization of the transmitted electromagnetic wave.')
 
-    tx_feed_p = parser.add_argument_group('Tx Feed Options')
+    tx_feed_p = parser.add_argument_group('Tx Power Options')
     tx_pwr_group = tx_feed_p.add_mutually_exclusive_group(required=True)
     tx_pwr_group.add_argument(
         '--eirp',
@@ -78,6 +79,25 @@ def get_parser():
                            type=float,
                            default=0,
                            help="Carrier or transponder output backoff in dB.")
+
+    fdma_group = parser.add_argument_group(
+        title='FDMA Carrier Power Options',
+        description="Parameters to determine the power allocated to an FDMA "
+        "carrier.")
+    fdma_group.add_argument(
+        '--carrier-peb',
+        type=float,
+        help="Power-equivalent bandwidth (PEB) in Hz assigned for the FDMA "
+        "carrier. When provided, the EIRP computed from --eirp or --tx-power "
+        "refers to the transponder, while the PEB determines the fraction of "
+        "this transponder EIRP allocated to the carrier. In this case, note "
+        "the output backoff must refer to the transponder, not the carrier. "
+        "If the output backoff represents the carrier backoff, do not inform "
+        "the carrier PEB.")
+    fdma_group.add_argument(
+        '--tp-bw',
+        type=float,
+        help="Transponder bandwidth in Hz, required if the PEB is provided.")
 
     dish_p = parser.add_argument_group('Antenna Options')
     tx_dish_group = dish_p.add_mutually_exclusive_group()
@@ -102,12 +122,15 @@ def get_parser():
         'defined directly by option ``--tx-dish-gain``, this parameter is '
         'used to infer the diameter of an equivalent parabolic reflector.')
     rx_dish_group = dish_p.add_mutually_exclusive_group(required=True)
-    rx_dish_group.add_argument('--rx-dish-size',
-                               type=float,
-                               help='Parabolic antenna (dish) diameter in m.')
-    rx_dish_group.add_argument('--rx-dish-gain',
-                               type=float,
-                               help='Parabolic antenna (dish) gain in dBi.')
+    rx_dish_group.add_argument(
+        '--rx-dish-size',
+        type=float,
+        help='Diameter in meters of the parabolic antenna used for '
+        'reception.')
+    rx_dish_group.add_argument(
+        '--rx-dish-gain',
+        type=float,
+        help='Gain in dBi of the parabolic antenna used for reception.')
     dish_p.add_argument(
         '--rx-dish-efficiency',
         type=float,
@@ -196,25 +219,6 @@ def get_parser():
         help='Loss in dB of the passive feed (typically waveguide) connecting '
         'the antenna to the LNA. Applicable when a discrete LNB is used '
         'instead of an integrated LNBF.')
-
-    fdma_group = parser.add_argument_group(
-        title='FDMA Carrier Power Options',
-        description="Parameters to determine the power allocated to an FDMA "
-        "carrier.")
-    fdma_group.add_argument(
-        '--carrier-peb',
-        type=float,
-        help="Power-equivalent bandwidth (PEB) in Hz assigned for the FDMA "
-        "carrier. When provided, the EIRP computed from --eirp or --tx-power "
-        "refers to the transponder, while the PEB determines the fraction of "
-        "this transponder EIRP allocated to the carrier. In this case, note "
-        "the output backoff must refer to the transponder, not the carrier. "
-        "If the output backoff represents the carrier backoff, do not inform "
-        "the carrier PEB.")
-    fdma_group.add_argument(
-        '--tp-bw',
-        type=float,
-        help="Transponder bandwidth in Hz, required if the PEB is provided.")
 
     pos_p = parser.add_argument_group(
         title='Earth Station Position Information',
@@ -642,14 +646,14 @@ def analyze(args, verbose=False):
     # -------- Noise Power --------
     N_dbw = calc.noise_power(
         T_syst_db,
-        args.if_bw,
+        args.bw,
     )
 
     # -------- Signal and Noise Power Spectral Densities --------
     sig_psd_dbw_hz = calc.spectral_density(P_rx_dbw,
-                                           args.if_bw,
+                                           args.bw,
                                            label="Rx signal")
-    noise_psd_dbw_hz = calc.spectral_density(N_dbw, args.if_bw, label="Noise")
+    noise_psd_dbw_hz = calc.spectral_density(N_dbw, args.bw, label="Noise")
 
     # -------- G/T and CNR --------
     g_over_t_db = calc.g_over_t(rx_dish.gain_db, T_syst_db)
@@ -665,7 +669,7 @@ def analyze(args, verbose=False):
         ci_db = None
 
     # -------- Capacity --------
-    capacity = calc.capacity(cnir_db, args.if_bw)
+    capacity = calc.capacity(cnir_db, args.bw)
 
     # Results
     res = {

@@ -23,7 +23,7 @@ link-budget \
   --sat-long -101 \
   --eirp 52 \
   --freq 12.45e9 \
-  --if-bw 24e6 \
+  --bw 24e6 \
   --rx-dish-size 0.46 \
   --lnb-noise-fig 0.6 \
   --lnb-gain 40 \
