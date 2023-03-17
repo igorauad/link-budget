@@ -2,19 +2,20 @@ import os
 import shutil
 import unittest
 
+from skyfield.api import load, wgs84
+
 from . import pointing
 from .constants import GEOSYNC_ORBIT
 
 
 class TestPointing(unittest.TestCase):
 
-    def test_look_angles(self):
-        """Test Rx stations at all four quadrants (SW, NW, NE, SE)
+    def test_gso_look_angles(self):
+        """Test look angle calculations for GSO satellites
 
-        Satellite: Eutelsat 113 at geostationary orbit and -113° longitude (W).
-
-        Check the elevation angle, azimumth angle (true north), and slant range
-        according to https://www.dishpointer.com.
+        Test Rx stations at all four quadrants (SW, NW, NE, SE). The look
+        angles are compared to those obtained with the dish pointer tool
+        (https://www.dishpointer.com).
 
         SW Station:
         1) Sao Paulo (Latitude: -23.5505°, Longitude: -46.6333°)
@@ -114,6 +115,36 @@ class TestPointing(unittest.TestCase):
             # ephemeris data instead of the nominal.
             self.assertAlmostEqual(slant_range_km, info['distance'], delta=12)
             self.assertAlmostEqual(pol_angle, info['lnb_skew'], delta=0.05)
+
+    def test_ngso_look_angles(self):
+        """Test look angle calculations for NGSO satellites
+
+        Tested by comparison to the results obtained with Skyfield.
+
+        """
+        # Rx in Washington DC
+        rx_lat = 38.9072
+        rx_long = -77.0369
+        rx_height = 0
+        observer_pos = wgs84.latlon(rx_lat, rx_long, rx_height)
+
+        # NGSO Satellite: Starlink-3699 covering DC at 2023-03-17T18:31:45
+        ts = load.timescale()
+        sat_long, sat_lat, sat_alt = pointing.get_sat_pos_by_tle(
+            'STARLINK-3699')
+        t = ts.utc(2023, 3, 17, 18, 31, 45)
+        sat_pos = wgs84.latlon(sat_lat, sat_long, sat_alt)
+
+        difference = sat_pos - observer_pos
+        topocentric = difference.at(t)
+        skyfield_el, skyfield_az, _ = topocentric.altaz()
+
+        el, az, _ = pointing.look_angles(sat_long, sat_lat, sat_alt, rx_long,
+                                         rx_lat, rx_height)
+
+        self.assertAlmostEqual(el, skyfield_el.degrees, delta=0.25)
+        self.assertAlmostEqual(az, skyfield_az.degrees, delta=0.25)
+        # TODO: the slant range differs significantly. Understand why.
 
     def test_get_sat_pos_by_tle(self):
         """Test satellite position through TLE-based prediction"""

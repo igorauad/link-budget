@@ -184,6 +184,7 @@ def look_angles(sat_long,
 
     # Convert to radians
     sat_long = radians(sat_long)
+    sat_lat = radians(sat_lat)
     rx_long = radians(rx_long)
     rx_lat = radians(rx_lat)
 
@@ -217,7 +218,7 @@ def look_angles(sat_long,
     # Rectangular coordinates of the satellite. See Fig. 5 in [1]:
     x_s = r * cos(sat_long) * cos(sat_lat)
     y_s = r * sin(sat_long) * cos(sat_lat)
-    z_s = 0
+    z_s = (N * (1 - e_sq) + sat_alt) * sin(sat_lat)
 
     # Step 3: SATELLITE COMPONENTS ON LOCAL (x, y, z) COORDINATES
     rect_coor = np.array([x_s, y_s, z_s]) - np.array([x_p, y_p, z_p])
